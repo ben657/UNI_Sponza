@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 
 #include <vector>
+#include <map>
 #include <memory>
 
 struct Vertex
@@ -17,6 +18,8 @@ struct Vertex
 struct Mesh
 {
 	GLuint vao = 0;
+	GLuint vertexVbo = 0;
+	GLuint elementVbo = 0;
 	GLuint elementCount = 0;
 };
 
@@ -36,8 +39,12 @@ private:
 	const GLuint vertexNormalLocation = 1;
 
 	GLuint gBuffer = 0;
+	GLuint gBufferDepthStencil = 0;
+	GLuint gBufferPositions = 0;
+	GLuint gBufferNormals = 0;
 
 	Mesh quadMesh;
+	std::map<scene::MeshId, Mesh> meshes;
 
 	GLuint geometryPassProgram = 0;
 	GLuint ambientPassProgram = 0;

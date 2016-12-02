@@ -248,14 +248,8 @@ ModelManifest.xml
 .fake/
 
 # TDK working files
-/[Ee]xternal/
 /[Tt]estdata/
-/[Cc]ontent/
 /[Dd]emo/
 /[Pp]ub/
 /[Mm]edia/
 [Bb]uild/
-
-/scene
-/tygra
-/tgl
