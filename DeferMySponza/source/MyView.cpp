@@ -82,7 +82,6 @@ void MyView::loadMesh(scene::Mesh mesh)
 
 void MyView::generateQuadMesh()
 {
-	Mesh mesh;
 	GLuint vertexVbo = 0;
 	GLuint elementVbo = 0;
 
@@ -92,8 +91,8 @@ void MyView::generateQuadMesh()
 	vertices[2] = glm::vec2(1, 1);
 	vertices[3] = glm::vec2(-1, 1);
 
-	glGenVertexArrays(1, &mesh.vao);
-	glBindVertexArray(mesh.vao);
+	glGenVertexArrays(1, &quadMesh.vao);
+	glBindVertexArray(quadMesh.vao);
 
 	glGenBuffers(1, &vertexVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexVbo);
@@ -113,6 +112,12 @@ void MyView::generateSphereMesh()
 void MyView::windowViewWillStart(tygra::Window * window)
 {
     assert(scene_ != nullptr);
+
+	glGenFramebuffers(1, &gBuffer);
+	//TODO: generate gbuffer, render to it
+	//glGenRenderbuffers()
+
+	generateQuadMesh();
 }
 
 void MyView::windowViewDidReset(tygra::Window * window,
@@ -120,6 +125,10 @@ void MyView::windowViewDidReset(tygra::Window * window,
                                 int height)
 {
     glViewport(0, 0, width, height);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+	
+
 }
 
 void MyView::windowViewDidStop(tygra::Window * window)

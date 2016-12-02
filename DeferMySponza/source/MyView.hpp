@@ -35,6 +35,10 @@ private:
 	const GLuint vertexPositionLocation = 0;
 	const GLuint vertexNormalLocation = 1;
 
+	GLuint gBuffer = 0;
+
+	Mesh quadMesh;
+
 	GLuint geometryPassProgram = 0;
 	GLuint ambientPassProgram = 0;
 	GLuint lightingPassProgram = 0;
