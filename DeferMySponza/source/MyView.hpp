@@ -8,6 +8,18 @@
 #include <vector>
 #include <memory>
 
+struct Vertex
+{
+	glm::vec3 position;
+	glm::vec3 normal;
+};
+
+struct Mesh
+{
+	GLuint vao = 0;
+	GLuint elementCount = 0;
+};
+
 class MyView : public tygra::WindowViewDelegate
 {
 public:
@@ -20,11 +32,21 @@ public:
 
 private:
 
+	const GLuint vertexPositionLocation = 0;
+	const GLuint vertexNormalLocation = 1;
+
+	GLuint geometryPassProgram = 0;
+	GLuint ambientPassProgram = 0;
+	GLuint lightingPassProgram = 0;
+
 	GLuint loadShader(std::string path, GLuint type);
+	GLuint buildGeometryPassProgram();
+	GLuint buildAmbientPassProgram();
 
 	void loadMesh(scene::Mesh mesh);
 
-	void generateLightMeshes();
+	void generateQuadMesh();
+	void generateSphereMesh();
 
     void windowViewWillStart(tygra::Window * window) override;
 
