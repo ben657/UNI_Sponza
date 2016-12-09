@@ -38,21 +38,27 @@ private:
 	const GLuint vertexPositionLocation = 0;
 	const GLuint vertexNormalLocation = 1;
 
+	GLenum defaultDrawBuffers[2] = { GL_FRONT_LEFT, GL_BACK_LEFT };
 	GLuint gBuffer = 0;
-	GLuint gBufferDepthStencil = 0;
-	GLuint gBufferPositions = 0;
-	GLuint gBufferNormals = 0;
+	GLenum gBufferDrawBuffers[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+	GLuint lBuffer = 0;
+	GLenum lBufferDrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+	GLuint depthStencilBuffer = 0;
+
+	GLuint positionsTexture = 0;
+	GLuint normalsTexture = 0;
+	GLuint colorTexture = 0;
 
 	Mesh quadMesh;
 	std::map<scene::MeshId, Mesh> meshes;
 
 	GLuint geometryPassProgram = 0;
-	GLuint ambientPassProgram = 0;
+	GLuint directionalPassProgram = 0;
 	GLuint lightingPassProgram = 0;
 
 	GLuint loadShader(std::string path, GLuint type);
 	GLuint buildGeometryPassProgram();
-	GLuint buildAmbientPassProgram();
+	GLuint buildDirectionalPassProgram();
 
 	void loadMesh(scene::Mesh mesh);
 

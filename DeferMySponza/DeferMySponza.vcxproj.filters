@@ -38,16 +38,16 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\ambient_fs.glsl">
-      <Filter>Shader Files</Filter>
-    </None>
-    <None Include="shaders\ambient_vs.glsl">
-      <Filter>Shader Files</Filter>
-    </None>
     <None Include="shaders\geom_fs.glsl">
       <Filter>Shader Files</Filter>
     </None>
     <None Include="shaders\geom_vs.glsl">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\directional_fs.glsl">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\directional_vs.glsl">
       <Filter>Shader Files</Filter>
     </None>
   </ItemGroup>

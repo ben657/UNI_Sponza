@@ -325,8 +325,8 @@
     <ClInclude Include="source\MyView.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\ambient_fs.glsl" />
-    <None Include="shaders\ambient_vs.glsl" />
+    <None Include="shaders\directional_fs.glsl" />
+    <None Include="shaders\directional_vs.glsl" />
     <None Include="shaders\geom_fs.glsl" />
     <None Include="shaders\geom_vs.glsl" />
   </ItemGroup>
