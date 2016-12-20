@@ -23,6 +23,13 @@ struct Mesh
 	GLuint elementCount = 0;
 };
 
+struct Material
+{
+	glm::vec3 specularColor;
+	float shininess = 0.0f;
+	glm::vec3 diffuseColor;
+};
+
 class MyView : public tygra::WindowViewDelegate
 {
 public:
@@ -51,6 +58,9 @@ private:
 
 	Mesh quadMesh;
 	std::map<scene::MeshId, Mesh> meshes;
+
+	std::map<scene::MaterialId, GLuint> materialOffsets;
+	GLuint materialsUbo = 0;
 
 	GLuint geometryPassProgram = 0;
 	GLuint directionalPassProgram = 0;

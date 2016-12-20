@@ -1,5 +1,11 @@
 #version 330
 
+layout(std140) uniform Material
+{
+	vec3 colour;
+	float shininess;
+} material;
+
 in vec3 varyingPosition;
 in vec3 varyingNormal;
 

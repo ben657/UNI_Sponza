@@ -178,6 +178,22 @@ void MyView::windowViewWillStart(tygra::Window * window)
 	glGenTextures(1, &normalsTexture);
 	glGenTextures(1, &colorTexture);
 	
+	const std::vector<scene::Material>& sceneMaterials = scene_->getAllMaterials();
+	std::vector<Material> materials;
+	for (const scene::Material& material : sceneMaterials)
+	{
+		materialOffsets[material.getId()] = materials.size();
+		Material newMat;
+		newMat.diffuseColor = (const glm::vec3&)material.getDiffuseColour();
+		newMat.specularColor = (const glm::vec3&)material.getSpecularColour();
+		newMat.shininess = material.getShininess();
+		materials.push_back(newMat);
+	}
+	glGenBuffers(1, &materialsUbo);
+	glBindBuffer(GL_UNIFORM_BUFFER, materialsUbo);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(Material) * materials.size(), materials.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
 	generateQuadMesh();
 
 	geometryPassProgram = buildGeometryPassProgram();
@@ -315,6 +331,9 @@ void MyView::windowViewRender(tygra::Window * window)
 		for (scene::InstanceId id : instances)
 		{
 			scene::Instance instance = scene_->getInstanceById(id);
+
+			GLuint materialOffset = materialOffsets[instance.getMaterialId()];
+			//glBindBufferRange(GL_UNIFORM_BUFFER, 0, materialOffset, TGL_BUFFER_OFFSET(sizeof(Material) * materialOffset));
 
 			glm::mat4 modelMatrix = (glm::mat4)((const glm::mat4x3&)instance.getTransformationMatrix());
 			glUniformMatrix4fv(modelMatrixID, 1, GL_FALSE, glm::value_ptr(modelMatrix));
