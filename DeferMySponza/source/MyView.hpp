@@ -25,9 +25,8 @@ struct Mesh
 
 struct Material
 {
-	glm::vec3 specularColor;
-	float shininess = 0.0f;
 	glm::vec3 diffuseColor;
+	float shininess = 0.0f;
 };
 
 class MyView : public tygra::WindowViewDelegate
@@ -47,20 +46,22 @@ private:
 
 	GLenum defaultDrawBuffers[2] = { GL_FRONT_LEFT, GL_BACK_LEFT };
 	GLuint gBuffer = 0;
-	GLenum gBufferDrawBuffers[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+	GLenum gBufferDrawBuffers[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 	GLuint lBuffer = 0;
 	GLenum lBufferDrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
 	GLuint depthStencilBuffer = 0;
 
 	GLuint positionsTexture = 0;
 	GLuint normalsTexture = 0;
+	GLuint materialsTexture = 0;
 	GLuint colorTexture = 0;
 
 	Mesh quadMesh;
 	std::map<scene::MeshId, Mesh> meshes;
 
-	std::map<scene::MaterialId, GLuint> materialOffsets;
-	GLuint materialsUbo = 0;
+	std::map<scene::MaterialId, Material> materials;
+	GLuint materialUbo = 0;
+	GLuint materialUboIndex = 0;
 
 	GLuint geometryPassProgram = 0;
 	GLuint directionalPassProgram = 0;

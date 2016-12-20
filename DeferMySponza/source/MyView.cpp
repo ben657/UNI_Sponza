@@ -47,6 +47,7 @@ GLuint MyView::buildGeometryPassProgram()
 	glAttachShader(program, fragmentShader);
 	glBindFragDataLocation(program, 0, "gBufferPosition");
 	glBindFragDataLocation(program, 1, "gBufferNormal");
+	glBindFragDataLocation(program, 2, "gBufferMaterial");
 	glDeleteShader(fragmentShader);
 
 	glLinkProgram(program);
@@ -59,6 +60,9 @@ GLuint MyView::buildGeometryPassProgram()
 		glGetProgramInfoLog(program, 1024, NULL, log);
 		std::cerr << log << std::endl;
 	}
+
+	GLuint materialBlockIndex = glGetUniformBlockIndex(program, "Material");
+	glUniformBlockBinding(program, materialBlockIndex, materialUboIndex);
 
 	return program;
 }
@@ -176,28 +180,28 @@ void MyView::windowViewWillStart(tygra::Window * window)
 	glGenRenderbuffers(1, &depthStencilBuffer);
 	glGenTextures(1, &positionsTexture);
 	glGenTextures(1, &normalsTexture);
+	glGenTextures(1, &materialsTexture);
 	glGenTextures(1, &colorTexture);
 	
 	const std::vector<scene::Material>& sceneMaterials = scene_->getAllMaterials();
-	std::vector<Material> materials;
 	for (const scene::Material& material : sceneMaterials)
 	{
-		materialOffsets[material.getId()] = materials.size();
 		Material newMat;
 		newMat.diffuseColor = (const glm::vec3&)material.getDiffuseColour();
-		newMat.specularColor = (const glm::vec3&)material.getSpecularColour();
+		//newMat.specularColor = (const glm::vec3&)material.getSpecularColour();
 		newMat.shininess = material.getShininess();
-		materials.push_back(newMat);
+		materials[material.getId()] = newMat;
 	}
-	glGenBuffers(1, &materialsUbo);
-	glBindBuffer(GL_UNIFORM_BUFFER, materialsUbo);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(Material) * materials.size(), materials.data(), GL_STATIC_DRAW);
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+	glGenBuffers(1, &materialUbo);
+	glBindBuffer(GL_UNIFORM_BUFFER, materialUbo);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(Material), 0, GL_STREAM_DRAW);
+	glBindBufferBase(GL_UNIFORM_BUFFER, materialUboIndex, materialUbo);
 
 	generateQuadMesh();
 
 	geometryPassProgram = buildGeometryPassProgram();
-	directionalPassProgram = buildDirectionalPassProgram();
+	//directionalPassProgram = buildDirectionalPassProgram();
 
 	scene::GeometryBuilder builder;
 	for (const scene::Mesh& mesh : builder.getAllMeshes())
@@ -225,38 +229,43 @@ void MyView::windowViewDidReset(tygra::Window * window,
 	glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
 	//Create position and normal textures to be written to from the gBuffer and used by shaders
+	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+
 	glBindTexture(GL_TEXTURE_RECTANGLE, positionsTexture);
 	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, 0);
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, positionsTexture, 0);
 	
 	glBindTexture(GL_TEXTURE_RECTANGLE, normalsTexture);
 	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, 0);
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_RECTANGLE, normalsTexture, 0);
 
-	//Create texture to hold results of shading in lBuffer
-	glBindTexture(GL_TEXTURE_RECTANGLE, colorTexture);
-	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, 0);
+	glBindTexture(GL_TEXTURE_RECTANGLE, materialsTexture);
+	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, 0);
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, colorTexture, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_RECTANGLE, materialsTexture, 0);
 
-	glBindTexture(GL_TEXTURE_RECTANGLE, 0);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
 	GLint framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE) {
 		tglDebugMessage(GL_DEBUG_SEVERITY_HIGH_ARB, "gBuffer not complete");
 	}
 
+	//Create texture to hold results of shading in lBuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
-	GLint framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+	glBindTexture(GL_TEXTURE_RECTANGLE, colorTexture);
+	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, 0);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, colorTexture, 0);
+
+	glBindTexture(GL_TEXTURE_RECTANGLE, 0);
+
+	framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE) {
 		tglDebugMessage(GL_DEBUG_SEVERITY_HIGH_ARB, "lBuffer not complete");
 	}
@@ -295,7 +304,7 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	//Set draw buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
-	glDrawBuffers(2, gBufferDrawBuffers);
+	glDrawBuffers(3, gBufferDrawBuffers);
 
 	//SCM-Purple ish?
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -332,8 +341,8 @@ void MyView::windowViewRender(tygra::Window * window)
 		{
 			scene::Instance instance = scene_->getInstanceById(id);
 
-			GLuint materialOffset = materialOffsets[instance.getMaterialId()];
-			//glBindBufferRange(GL_UNIFORM_BUFFER, 0, materialOffset, TGL_BUFFER_OFFSET(sizeof(Material) * materialOffset));
+			glBindBuffer(GL_UNIFORM_BUFFER, materialUbo);
+			glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Material), &materials[instance.getMaterialId()]);
 
 			glm::mat4 modelMatrix = (glm::mat4)((const glm::mat4x3&)instance.getTransformationMatrix());
 			glUniformMatrix4fv(modelMatrixID, 1, GL_FALSE, glm::value_ptr(modelMatrix));
@@ -343,32 +352,32 @@ void MyView::windowViewRender(tygra::Window * window)
 		}
 	}
 
-	//Bind lBuffer, do light shading
-	glDisable(GL_DEPTH_TEST);
+	////Bind lBuffer, do light shading
+	//glDisable(GL_DEPTH_TEST);
 
-	//Don't shade fragments not part of Sponza
-	glEnable(GL_STENCIL_TEST);
-	glStencilFunc(GL_EQUAL, 1, ~0);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+	////Don't shade fragments not part of Sponza
+	//glEnable(GL_STENCIL_TEST);
+	//glStencilFunc(GL_EQUAL, 1, ~0);
+	//glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
-	glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
-	glDrawBuffers(1, lBufferDrawBuffers);
+	//glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
+	//glDrawBuffers(1, lBufferDrawBuffers);
 
-	glClear(GL_COLOR_BUFFER_BIT);
+	//glClear(GL_COLOR_BUFFER_BIT);
 
-	glUseProgram(directionalPassProgram);
+	//glUseProgram(directionalPassProgram);
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_RECTANGLE, positionsTexture);
+	//glActiveTexture(GL_TEXTURE0);
+	//glBindTexture(GL_TEXTURE_RECTANGLE, positionsTexture);
 
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_RECTANGLE, normalsTexture);
+	//glActiveTexture(GL_TEXTURE1);
+	//glBindTexture(GL_TEXTURE_RECTANGLE, normalsTexture);
 
-	GLuint posSamplerID = glGetUniformLocation(directionalPassProgram, "positionSampler");
-	GLuint normalSamplerID = glGetUniformLocation(directionalPassProgram, "normalSampler");
-	glUniform1i(posSamplerID, 0);
-	glUniform1i(normalSamplerID, 1);
+	//GLuint posSamplerID = glGetUniformLocation(directionalPassProgram, "positionSampler");
+	//GLuint normalSamplerID = glGetUniformLocation(directionalPassProgram, "normalSampler");
+	//glUniform1i(posSamplerID, 0);
+	//glUniform1i(normalSamplerID, 1);
 
-	glBindVertexArray(quadMesh.vao);
-	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	//glBindVertexArray(quadMesh.vao);
+	//glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
