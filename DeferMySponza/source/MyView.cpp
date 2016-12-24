@@ -58,9 +58,10 @@ GLuint MyView::buildGeometryPassProgram()
 	{
 		GLchar log[1024] = "";
 		glGetProgramInfoLog(program, 1024, NULL, log);
+		std::cerr << "Geometry pass program" << std::endl;
 		std::cerr << log << std::endl;
 	}
-
+	
 	GLuint materialBlockIndex = glGetUniformBlockIndex(program, "Material");
 	glUniformBlockBinding(program, materialBlockIndex, materialUboIndex);
 
@@ -90,6 +91,40 @@ GLuint MyView::buildDirectionalPassProgram()
 	{
 		GLchar log[1024] = "";
 		glGetProgramInfoLog(program, 1024, NULL, log);
+		std::cerr << "Directional light pass program" << std::endl;
+		std::cerr << log << std::endl;
+	}
+
+	GLuint lightBlockIndex = glGetUniformBlockIndex(program, "DirectionalLight");
+	glUniformBlockBinding(program, lightBlockIndex, directionalLightUboIndex);
+
+	return program;
+}
+
+GLuint MyView::buildPostPassProgram()
+{
+	GLuint vertexShader = loadShader("resource:///post_vs.glsl", GL_VERTEX_SHADER);
+	GLuint fragmentShader = loadShader("resource:///post_fs.glsl", GL_FRAGMENT_SHADER);
+
+	GLuint program = glCreateProgram();
+
+	glAttachShader(program, vertexShader);
+	glBindAttribLocation(program, 0, "vertexPosition");
+	glDeleteShader(vertexShader);
+
+	glAttachShader(program, fragmentShader);
+	glBindFragDataLocation(program, 0, "fragColour");
+	glDeleteShader(fragmentShader);
+
+	glLinkProgram(program);
+
+	GLint linkStatus = 0;
+	glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
+	if (linkStatus != GL_TRUE)
+	{
+		GLchar log[1024] = "";
+		glGetProgramInfoLog(program, 1024, NULL, log);
+		std::cerr << "Post pass program" << std::endl;
 		std::cerr << log << std::endl;
 	}
 
@@ -198,10 +233,30 @@ void MyView::windowViewWillStart(tygra::Window * window)
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(Material), 0, GL_STREAM_DRAW);
 	glBindBufferBase(GL_UNIFORM_BUFFER, materialUboIndex, materialUbo);
 
+	glGenBuffers(1, &directionalLightUbo);
+	glBindBuffer(GL_UNIFORM_BUFFER, directionalLightUbo);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(DirectionalLight), 0, GL_STREAM_DRAW);
+	glBindBufferBase(GL_UNIFORM_BUFFER, directionalLightUboIndex, directionalLightUbo);
+
 	generateQuadMesh();
 
+	geometryProgram = new ShaderProgram("resource:///geom_vs.glsl", "resource:///geom_fs.glsl");
+	geometryProgram->setVertexInputs(
+		new char*[] {
+			"vertexPosition",
+			"vertexNormal"
+		}, 2);
+	geometryProgram->setFragmentOutputs(
+		new char*[] {
+			"gBufferPosition",
+			"gBufferNormal",
+			"gBufferMaterial"
+		}, 3);
+	geometryProgram->build();
+	//TODO: bind material ubo, do rest of shaders
 	geometryPassProgram = buildGeometryPassProgram();
-	//directionalPassProgram = buildDirectionalPassProgram();
+	directionalPassProgram = buildDirectionalPassProgram();
+	postPassProgram = buildPostPassProgram();
 
 	scene::GeometryBuilder builder;
 	for (const scene::Mesh& mesh : builder.getAllMeshes())
@@ -300,26 +355,27 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	glDisable(GL_BLEND);
 
-	glCullFace(GL_BACK);
+	//glCullFace(GL_BACK);
 
 	//Set draw buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
 	glDrawBuffers(3, gBufferDrawBuffers);
 
 	//SCM-Purple ish?
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	//glClearColor(0.33f, 0.22f, 0.5f, 0.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClearStencil(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 	//Set up shading variables
-	glUseProgram(geometryPassProgram);
+	glUseProgram(geometryProgram->getProgram());
 
 	GLint viewportSize[4];
 	glGetIntegerv(GL_VIEWPORT, viewportSize);
 	int width = viewportSize[2];
 	int height = viewportSize[3];
 	const float aspectRatio = (float)width / (float)height;
-	glm::mat4 projectionMatrix = glm::perspective(90.f, aspectRatio, 1.f, 1000.f);
+	glm::mat4 projectionMatrix = glm::perspective(glm::radians(90.0f), aspectRatio, 1.f, 1000.f);
 
 	const scene::Camera& camera = scene_->getCamera();
 	glm::vec3 cameraPos = (const glm::vec3&)camera.getPosition();
@@ -328,10 +384,7 @@ void MyView::windowViewRender(tygra::Window * window)
 	
 	glm::mat4 projViewMatrix = projectionMatrix * viewMatrix;
 
-	GLuint projViewMatrixID = glGetUniformLocation(geometryPassProgram, "projViewMatrix");
-	GLuint modelMatrixID = glGetUniformLocation(geometryPassProgram, "modelMatrix");
-
-	glUniformMatrix4fv(projViewMatrixID, 1, GL_FALSE, glm::value_ptr(projViewMatrix));
+	geometryProgram->uploadMatrixUniform(projViewMatrix, "projViewMatrix");
 
 	for (auto& iterator = meshes.begin(); iterator != meshes.end(); iterator++)
 	{
@@ -345,7 +398,7 @@ void MyView::windowViewRender(tygra::Window * window)
 			glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Material), &materials[instance.getMaterialId()]);
 
 			glm::mat4 modelMatrix = (glm::mat4)((const glm::mat4x3&)instance.getTransformationMatrix());
-			glUniformMatrix4fv(modelMatrixID, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+			geometryProgram->uploadMatrixUniform(modelMatrix, "modelMatrix");
 
 			glBindVertexArray(mesh.vao);
 			glDrawElements(GL_TRIANGLES, mesh.elementCount, GL_UNSIGNED_INT, 0);
@@ -357,8 +410,12 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	////Don't shade fragments not part of Sponza
 	//glEnable(GL_STENCIL_TEST);
-	//glStencilFunc(GL_EQUAL, 1, ~0);
+	//glStencilFunc(GL_ALWAYS, 1, ~0);
 	//glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+	//glEnable(GL_BLEND);
+	//glBlendEquation(GL_FUNC_ADD);
+	//glBlendFunc(GL_ONE, GL_ONE);
 
 	//glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
 	//glDrawBuffers(1, lBufferDrawBuffers);
@@ -373,11 +430,33 @@ void MyView::windowViewRender(tygra::Window * window)
 	//glActiveTexture(GL_TEXTURE1);
 	//glBindTexture(GL_TEXTURE_RECTANGLE, normalsTexture);
 
+	//glActiveTexture(GL_TEXTURE2);
+	//glBindTexture(GL_TEXTURE_RECTANGLE, materialsTexture);
+
 	//GLuint posSamplerID = glGetUniformLocation(directionalPassProgram, "positionSampler");
-	//GLuint normalSamplerID = glGetUniformLocation(directionalPassProgram, "normalSampler");
 	//glUniform1i(posSamplerID, 0);
+	//GLuint normalSamplerID = glGetUniformLocation(directionalPassProgram, "normalSampler");
 	//glUniform1i(normalSamplerID, 1);
+	//GLuint materialSamplerID = glGetUniformLocation(directionalPassProgram, "materialSampler");
+	//glUniform1i(materialSamplerID, 2);
+
+	//GLuint camPosID = glGetUniformLocation(directionalPassProgram, "cameraPosition");
+	//glUniform3fv(camPosID, 1, glm::value_ptr(cameraPos));
 
 	//glBindVertexArray(quadMesh.vao);
-	//glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	//glBindBuffer(GL_UNIFORM_BUFFER, directionalLightUbo);
+
+	//const std::vector<scene::DirectionalLight>& lights = scene_->getAllDirectionalLights();
+	//DirectionalLight dLight;
+	//for (scene::DirectionalLight light : lights)
+	//{
+	//	dLight.direction = (const glm::vec3&) light.getDirection();
+	//	dLight.intensity = (const glm::vec3&) light.getIntensity();
+	//	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(DirectionalLight), &dLight);
+	//	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	//}
+
+	//glBindFramebuffer(GL_READ_FRAMEBUFFER, lBuffer);
+	//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	//glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT, GL_NEAREST);
 }

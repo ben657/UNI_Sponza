@@ -4,6 +4,7 @@
 #include <tygra/WindowViewDelegate.hpp>
 #include <tgl/tgl.h>
 #include <glm/glm.hpp>
+#include "ShaderProgram.h"
 
 #include <vector>
 #include <map>
@@ -27,6 +28,13 @@ struct Material
 {
 	glm::vec3 diffuseColor;
 	float shininess = 0.0f;
+};
+
+struct DirectionalLight
+{
+	glm::vec3 direction;
+	int pad0 = 0;
+	glm::vec3 intensity;
 };
 
 class MyView : public tygra::WindowViewDelegate
@@ -63,13 +71,17 @@ private:
 	GLuint materialUbo = 0;
 	GLuint materialUboIndex = 0;
 
-	GLuint geometryPassProgram = 0;
-	GLuint directionalPassProgram = 0;
-	GLuint lightingPassProgram = 0;
+	GLuint directionalLightUbo = 0;
+	GLuint directionalLightUboIndex = 1;
+
+	ShaderProgram* geometryProgram;
+	ShaderProgram* ambientProgram;
+	ShaderProgram* directionalLightProgram;
 
 	GLuint loadShader(std::string path, GLuint type);
 	GLuint buildGeometryPassProgram();
 	GLuint buildDirectionalPassProgram();
+	GLuint buildPostPassProgram();
 
 	void loadMesh(scene::Mesh mesh);
 

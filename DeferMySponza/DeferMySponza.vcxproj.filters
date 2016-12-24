@@ -28,12 +28,18 @@
     <ClCompile Include="source\MyController.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="source\ShaderProgram.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\MyView.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\MyController.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ShaderProgram.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -48,6 +54,12 @@
       <Filter>Shader Files</Filter>
     </None>
     <None Include="shaders\directional_vs.glsl">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\post_fs.glsl">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\post_vs.glsl">
       <Filter>Shader Files</Filter>
     </None>
   </ItemGroup>
