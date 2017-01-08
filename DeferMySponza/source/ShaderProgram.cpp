@@ -46,24 +46,28 @@ GLint ShaderProgram::build()
 
 void ShaderProgram::bindUniformBuffer(const char * uniformName, const GLuint & uniformBufferIndex)
 {
+	glUseProgram(program);
 	GLuint blockIndex = glGetUniformBlockIndex(program, uniformName);
 	glUniformBlockBinding(program, blockIndex, uniformBufferIndex);
 }
 
 void ShaderProgram::uploadMatrixUniform(const glm::mat4 & matrix, const char * uniformName)
 {
+	glUseProgram(program);
 	GLuint location = glGetUniformLocation(program, uniformName);
 	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(matrix));
 }
 
 void ShaderProgram::uploadVector3Uniform(const glm::vec3 & vector, const char * uniformName)
 {
+	glUseProgram(program);
 	GLuint location = glGetUniformLocation(program, uniformName);
 	glUniform3fv(location, 1, glm::value_ptr(vector));
 }
 
 void ShaderProgram::activateTextureSamplerUniform(const GLuint textureUnit, GLuint texture, const char * uniformName)
 {
+	glUseProgram(program);
 	glActiveTexture(GL_TEXTURE0 + textureUnit);
 	glBindTexture(GL_TEXTURE_RECTANGLE, texture);
 	GLuint location = glGetUniformLocation(program, uniformName);

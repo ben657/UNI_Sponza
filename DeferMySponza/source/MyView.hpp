@@ -37,6 +37,13 @@ struct DirectionalLight
 	glm::vec3 intensity;
 };
 
+struct PointLight
+{
+	glm::vec3 position;
+	float range;
+	glm::vec3 intensity;
+};
+
 class MyView : public tygra::WindowViewDelegate
 {
 public:
@@ -65,6 +72,7 @@ private:
 	GLuint colorTexture = 0;
 
 	Mesh quadMesh;
+	Mesh sphereMesh;
 	std::map<scene::MeshId, Mesh> meshes;
 
 	std::map<scene::MaterialId, Material> materials;
@@ -79,9 +87,10 @@ private:
 	ShaderProgram* directionalLightProgram;
 
 	GLuint loadShader(std::string path, GLuint type);
-	GLuint buildGeometryPassProgram();
-	GLuint buildDirectionalPassProgram();
-	GLuint buildPostPassProgram();
+	void buildGeometryPassProgram();
+	void buildAmbientPassProgram();
+	void buildDirectionalPassProgram();
+	void buildPostPassProgram();
 
 	void loadMesh(scene::Mesh mesh);
 

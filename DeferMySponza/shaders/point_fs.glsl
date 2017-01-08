@@ -6,9 +6,10 @@ struct Material
 	float shininess;
 } material;
 
-layout(std140) uniform DirectionalLight
+layout(std140) uniform PointLight
 {
-	vec3 direction;
+	vec3 position;
+	float range;
 	vec3 intensity;
 } light;
 
@@ -34,9 +35,12 @@ vec3 phong(vec3 normal, vec3 viewDirection, vec3 lightDirection)
 	return material.color * diffuseIntensity + vec3(1.0f, 1.0f, 1.0f) * specularIntensity;
 }
 
-vec3 directionalLight(vec3 normal, vec3 viewDirection)
+vec3 pointLight(vec3 normal, vec3 viewDirection, vec3 lightDirection, float distanceToLight)
 {
-	return light.intensity * phong(normal, viewDirection, light.direction * -1.0f);
+	float attenuation = d / light.range;
+	vec3 direction = normalize(
+	vec3 l = light.intensity * phong(normal, viewDirection, light.direction * -1.0f);
+	return  l * attenuation;
 }
 
 void main(void)
@@ -49,7 +53,10 @@ void main(void)
 	material.color = materialData.xyz;
 	material.shininess = materialData.w;
 
+	vec3 lightToCamera = cameraPosition - position;
 	vec3 viewDirection = normalize(cameraPosition - position);
+	vec3 lightDirection = normalize(light - position);
+	float distanceToLight = length(lightToCamera);
 
-	fragColor = directionalLight(normal, viewDirection);
+	fragColor = directionalLight(normal, viewDirection, lightDirection, distanceToLight);
 }

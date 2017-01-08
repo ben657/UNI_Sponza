@@ -38,4 +38,3 @@ public:
 	void uploadVector3Uniform(const glm::vec3& vector, const char* uniformName);
 	void activateTextureSamplerUniform(const GLuint textureUnit, GLuint texture, const char* uniformName);
 };
-
