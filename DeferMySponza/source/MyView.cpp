@@ -47,7 +47,7 @@ void MyView::buildGeometryPassProgram()
 		"gBufferMaterial"
 	}, 3);
 	geometryProgram->build();
-	geometryProgram->bindUniformBuffer("Material", materialUboIndex);
+	geometryProgram->bindUniformBuffer("Material", materialUbo->getIndex());
 }
 
 void MyView::buildAmbientPassProgram()
@@ -68,8 +68,19 @@ void MyView::buildDirectionalPassProgram()
 	directionalLightProgram->setFragmentOutputs(new char*[1]{ "fragColor" }, 1);
 	GLuint status = directionalLightProgram->build();
 
-	directionalLightProgram->bindUniformBuffer("Material", materialUboIndex);
-	directionalLightProgram->bindUniformBuffer("DirectionalLight", directionalLightUboIndex);
+	directionalLightProgram->bindUniformBuffer("Material", materialUbo->getIndex());
+	directionalLightProgram->bindUniformBuffer("DirectionalLight", directionalLightUbo->getIndex());
+}
+
+void MyView::buildPointPassProgram()
+{
+	pointLightProgram = new ShaderProgram("resource:///point_vs.glsl", "resource:///point_fs.glsl");
+	pointLightProgram->setVertexInputs(new char*[1]{ "vertexPosition" }, 1);
+	pointLightProgram->setFragmentOutputs(new char*[1]{ "fragColor" }, 1);
+	GLuint status = pointLightProgram->build();
+
+	pointLightProgram->bindUniformBuffer("Material", materialUbo->getIndex());
+	pointLightProgram->bindUniformBuffer("PointLight", pointLightUbo->getIndex());
 }
 
 void MyView::buildPostPassProgram()
@@ -96,10 +107,33 @@ void MyView::loadMesh(scene::Mesh mesh)
 	const std::vector<unsigned int> elements = mesh.getElementArray();
 	newMesh.elementCount = elements.size();
 
+	std::vector<Instance> instances;
+	const std::vector<scene::InstanceId>& instanceIds = scene_->getInstancesByMeshId(mesh.getId());
+	for (const scene::InstanceId& id : instanceIds)
+	{
+		const scene::Instance& instance = scene_->getInstanceById(id);
+		Instance newInstance;
+
+		scene::Matrix4x3 sceneMatrix = instance.getTransformationMatrix();
+		glm::mat4x3 matrix = (const glm::mat4x3&)sceneMatrix;
+		newInstance.transformationMatrix = matrix;
+
+		/*scene::Material material = scene_->getMaterialById(instance.getMaterialId());
+		newInstance.material.diffuseColor = (const glm::vec3&)material.getDiffuseColour();
+		newInstance.material.shininess = material.getShininess();*/
+
+		instances.push_back(newInstance);
+	}
+	newMesh.instanceCount = instances.size();
+
 	//One interleaved vertex buffer
 	glGenBuffers(1, &newMesh.vertexVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, newMesh.vertexVbo);
 	glBufferData(GL_ARRAY_BUFFER, vertexes.size() * sizeof(Vertex), vertexes.data(), GL_STATIC_DRAW);
+
+	glGenBuffers(1, &newMesh.instanceVbo);
+	glBindBuffer(GL_ARRAY_BUFFER, newMesh.instanceVbo);
+	glBufferData(GL_ARRAY_BUFFER, instances.size() * sizeof(Instance), instances.data(), GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &newMesh.elementVbo);
@@ -115,10 +149,10 @@ void MyView::loadMesh(scene::Mesh mesh)
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(0));
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(sizeof(glm::vec3)));
+
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
 	meshes[mesh.getId()] = newMesh;
 }
 
@@ -203,19 +237,14 @@ void MyView::windowViewWillStart(tygra::Window * window)
 		materials[material.getId()] = newMat;
 	}
 
-	glGenBuffers(1, &materialUbo);
-	glBindBuffer(GL_UNIFORM_BUFFER, materialUbo);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(Material), 0, GL_STREAM_DRAW);
-	glBindBufferBase(GL_UNIFORM_BUFFER, materialUboIndex, materialUbo);
-
-	glGenBuffers(1, &directionalLightUbo);
-	glBindBuffer(GL_UNIFORM_BUFFER, directionalLightUbo);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(DirectionalLight), 0, GL_STREAM_DRAW);
-	glBindBufferBase(GL_UNIFORM_BUFFER, directionalLightUboIndex, directionalLightUbo);
+	materialUbo = new UniformBuffer<Material>(0, GL_STREAM_DRAW);
+	directionalLightUbo = new UniformBuffer<DirectionalLight>(1, GL_STREAM_DRAW);
+	pointLightUbo = new UniformBuffer<PointLight>(2, GL_STREAM_DRAW);
 
 	buildGeometryPassProgram();
 	buildAmbientPassProgram();
 	buildDirectionalPassProgram();
+	buildPointPassProgram();
 
 	generateQuadMesh();
 	generateSphereMesh();
@@ -317,7 +346,7 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	glDisable(GL_BLEND);
 
-	//glCullFace(GL_BACK);
+	glCullFace(GL_BACK);
 
 	//Set draw buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
@@ -355,8 +384,7 @@ void MyView::windowViewRender(tygra::Window * window)
 		{
 			scene::Instance instance = scene_->getInstanceById(id);
 
-			glBindBuffer(GL_UNIFORM_BUFFER, materialUbo);
-			glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Material), &materials[instance.getMaterialId()]);
+			materialUbo->bufferData(&materials[instance.getMaterialId()]);
 
 			glm::mat4 modelMatrix = (glm::mat4)((const glm::mat4x3&)instance.getTransformationMatrix());
 			geometryProgram->uploadMatrixUniform(modelMatrix, "modelMatrix");
@@ -391,8 +419,7 @@ void MyView::windowViewRender(tygra::Window * window)
 	glBlendFunc(GL_ONE, GL_ONE);
 
 	//Directional Lights
-	glBindVertexArray(sphereMesh.vao);
-	glBindBuffer(GL_UNIFORM_BUFFER, directionalLightUbo);
+	glBindVertexArray(quadMesh.vao);
 
 	directionalLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
 	directionalLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
@@ -406,14 +433,23 @@ void MyView::windowViewRender(tygra::Window * window)
 	{
 		dLight.direction = (const glm::vec3&) light.getDirection();
 		dLight.intensity = (const glm::vec3&) light.getIntensity();
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(DirectionalLight), &dLight);
+		directionalLightUbo->bufferData(&dLight);
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}
 
-	//TODO: Draw sphere at location + scale for each point light in scene
-	// + write point light shader
+	//Point Lights
+	glCullFace(GL_FRONT);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+	glDepthFunc(GL_GREATER);
+
 	glBindVertexArray(sphereMesh.vao);
-	glBindBuffer(GL_UNIFORM_BUFFER, pointLightUbo);
+
+	pointLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
+	pointLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
+	pointLightProgram->activateTextureSamplerUniform(2, materialsTexture, "materialSampler");
+	pointLightProgram->uploadVector3Uniform(cameraPos, "cameraPosition");
+	glUseProgram(pointLightProgram->getProgram());
 
 	const std::vector<scene::PointLight>& pointLights = scene_->getAllPointLights();
 	PointLight pLight;
@@ -422,8 +458,19 @@ void MyView::windowViewRender(tygra::Window * window)
 		pLight.position = (const glm::vec3&) light.getPosition();
 		pLight.range = light.getRange();
 		pLight.intensity = (const glm::vec3&) light.getIntensity();
+		pointLightUbo->bufferData(&pLight);
+
+		glm::mat4 modelMatrix = glm::mat4();
+		modelMatrix = glm::translate(modelMatrix, pLight.position);
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(pLight.range));
+
+		glm::mat4 combinedMatrix = projViewMatrix * modelMatrix;
+		pointLightProgram->uploadMatrixUniform(combinedMatrix, "combinedMatrix");
+
+		glDrawElements(GL_TRIANGLES, sphereMesh.elementCount, GL_UNSIGNED_INT, TGL_BUFFER_OFFSET(0));
 	}
 
+	//Blit lBuffer to screen
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, lBuffer);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT, GL_NEAREST);

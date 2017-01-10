@@ -41,6 +41,13 @@ GLint ShaderProgram::build()
 	glLinkProgram(program);
 	glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
 
+	if (linkStatus != GL_TRUE)
+	{
+		GLchar log[1024] = "";
+		glGetProgramInfoLog(program, 1024, NULL, log);
+		std::cerr << log << std::endl;
+	}
+
 	return linkStatus;
 }
 

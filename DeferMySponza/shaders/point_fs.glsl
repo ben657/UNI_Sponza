@@ -37,9 +37,9 @@ vec3 phong(vec3 normal, vec3 viewDirection, vec3 lightDirection)
 
 vec3 pointLight(vec3 normal, vec3 viewDirection, vec3 lightDirection, float distanceToLight)
 {
-	float attenuation = d / light.range;
-	vec3 direction = normalize(
-	vec3 l = light.intensity * phong(normal, viewDirection, light.direction * -1.0f);
+	float d = clamp(distanceToLight, 0, light.range);
+	float attenuation = (light.range - d) / light.range;
+	vec3 l = light.intensity * phong(normal, viewDirection, lightDirection);
 	return  l * attenuation;
 }
 
@@ -53,10 +53,10 @@ void main(void)
 	material.color = materialData.xyz;
 	material.shininess = materialData.w;
 
-	vec3 lightToCamera = cameraPosition - position;
 	vec3 viewDirection = normalize(cameraPosition - position);
-	vec3 lightDirection = normalize(light - position);
-	float distanceToLight = length(lightToCamera);
+	vec3 positionToLight = light.position - position;
+	vec3 lightDirection = normalize(positionToLight);
+	float distanceToLight = length(positionToLight);
 
-	fragColor = directionalLight(normal, viewDirection, lightDirection, distanceToLight);
+	fragColor = pointLight(normal, viewDirection, lightDirection, distanceToLight);
 }

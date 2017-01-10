@@ -31,9 +31,6 @@
     <ClCompile Include="source\ShaderProgram.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="UniformBuffer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\MyView.hpp">
@@ -45,7 +42,7 @@
     <ClInclude Include="source\ShaderProgram.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UniformBuffer.h">
+    <ClInclude Include="source\UniformBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

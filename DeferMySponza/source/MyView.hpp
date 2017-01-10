@@ -5,6 +5,7 @@
 #include <tgl/tgl.h>
 #include <glm/glm.hpp>
 #include "ShaderProgram.h"
+#include "UniformBuffer.h"
 
 #include <vector>
 #include <map>
@@ -22,6 +23,14 @@ struct Mesh
 	GLuint vertexVbo = 0;
 	GLuint elementVbo = 0;
 	GLuint elementCount = 0;
+	GLuint instanceVbo = 0;
+	GLuint instanceCount = 0;
+};
+
+struct Instance
+{
+	glm::mat4 transformationMatrix;
+	//Material material;
 };
 
 struct Material
@@ -75,21 +84,21 @@ private:
 	Mesh sphereMesh;
 	std::map<scene::MeshId, Mesh> meshes;
 
-	std::map<scene::MaterialId, Material> materials;
-	GLuint materialUbo = 0;
-	GLuint materialUboIndex = 0;
-
-	GLuint directionalLightUbo = 0;
-	GLuint directionalLightUboIndex = 1;
-
 	ShaderProgram* geometryProgram;
 	ShaderProgram* ambientProgram;
 	ShaderProgram* directionalLightProgram;
+	ShaderProgram* pointLightProgram;
+
+	std::map<scene::MaterialId, Material> materials;
+	UniformBuffer<Material>* materialUbo = nullptr;
+	UniformBuffer<DirectionalLight>* directionalLightUbo = nullptr;
+	UniformBuffer<PointLight>* pointLightUbo = nullptr;
 
 	GLuint loadShader(std::string path, GLuint type);
 	void buildGeometryPassProgram();
 	void buildAmbientPassProgram();
 	void buildDirectionalPassProgram();
+	void buildPointPassProgram();
 	void buildPostPassProgram();
 
 	void loadMesh(scene::Mesh mesh);
