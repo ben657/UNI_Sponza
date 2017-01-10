@@ -16,10 +16,8 @@ private:
 	GLuint vertexShader = 0;
 	GLuint fragmentShader = 0;
 
-	char** vertexInputs = nullptr;
-	GLuint vertexInputCount = 0;
-	char** fragmentOutputs = nullptr;
-	GLuint fragmentOutputCount = 0;
+	std::map<int, const char*> vertexInputs;
+	std::map<int, const char*> fragmentOutputs;
 
 	GLuint loadShader(const std::string& path, GLuint type);
 
@@ -27,8 +25,8 @@ public:
 	ShaderProgram(const std::string& vertexFile, const std::string& fragmentFile);
 	~ShaderProgram();
 
-	void setVertexInputs(char** inputs, GLuint count) { vertexInputs = inputs; vertexInputCount = count; }
-	void setFragmentOutputs(char** outputs, GLuint count) { fragmentOutputs = outputs; fragmentOutputCount = count; }
+	void setVertexInput(int location, const char* inputName) { vertexInputs[location] = inputName; }
+	void setFragmentInput(int location, const char* outputName) { fragmentOutputs[location] = outputName; }
 	
 	GLint build();
 	GLuint& getProgram() { return program; }

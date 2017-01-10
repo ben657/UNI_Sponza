@@ -34,6 +34,7 @@ GLuint MyView::loadShader(std::string path, GLuint type)
 
 void MyView::buildGeometryPassProgram()
 {
+	//TODO: set inputs/outputs manually, REMEMBER MATRIX STUFF, change draws to instanced
 	geometryProgram = new ShaderProgram("resource:///geom_vs.glsl", "resource:///geom_fs.glsl");
 	geometryProgram->setVertexInputs(
 		new char*[2]{
@@ -149,6 +150,12 @@ void MyView::loadMesh(scene::Mesh mesh)
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(0));
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(sizeof(glm::vec3)));
+	for (int i = 2; i < 2 + 4; i++)
+	{
+		glEnableVertexAttribArray(i);
+		glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, sizeof(Instance), TGL_BUFFER_OFFSET(sizeof(glm::vec4) * i));
+		glVertexAttribDivisor(i, 1);
+	}
 
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -352,7 +359,6 @@ void MyView::windowViewRender(tygra::Window * window)
 	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
 	glDrawBuffers(3, gBufferDrawBuffers);
 
-	//SCM-Purple ish?
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClearStencil(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -405,6 +411,7 @@ void MyView::windowViewRender(tygra::Window * window)
 	glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
 	glDrawBuffers(1, lBufferDrawBuffers);
 
+	//SCM-Purple ish?
 	glClearColor(0.33f, 0.22f, 0.5f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 

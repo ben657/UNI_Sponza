@@ -26,15 +26,15 @@ GLint ShaderProgram::build()
 	program = glCreateProgram();
 
 	glAttachShader(program, vertexShader);
-	for (int i = 0; i < vertexInputCount; i++)
+	for (auto& iterator : vertexInputs)
 	{
-		glBindAttribLocation(program, i, vertexInputs[i]);
+		glBindAttribLocation(program, iterator.first, iterator.second);
 	}
 	
 	glAttachShader(program, fragmentShader);
-	for (int i = 0; i < fragmentOutputCount; i++)
+	for (auto& iterator : fragmentOutputs)
 	{
-		glBindFragDataLocation(program, i, fragmentOutputs[i]);
+		glBindFragDataLocation(program, iterator.first, iterator.second);
 	}
 
 	GLint linkStatus = 0;
