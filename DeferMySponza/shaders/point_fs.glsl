@@ -6,11 +6,11 @@ struct Material
 	float shininess;
 } material;
 
-layout(std140) uniform PointLight
+in Light
 {
 	vec3 position;
-	float range;
 	vec3 intensity;
+	float range;
 } light;
 
 uniform sampler2DRect positionSampler;

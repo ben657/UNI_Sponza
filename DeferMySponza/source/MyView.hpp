@@ -50,15 +50,8 @@ struct PointLightInstance
 {
 	glm::mat4 transformationMatrix;
 	glm::vec3 position;
-	float range;
 	glm::vec3 intensity;
-};
-
-struct PointLight
-{
-	glm::vec3 position;
 	float range;
-	glm::vec3 intensity;
 };
 
 class MyView : public tygra::WindowViewDelegate
@@ -99,7 +92,6 @@ private:
 
 	std::map<scene::MaterialId, Material> materials;
 	UniformBuffer<DirectionalLight>* directionalLightUbo = nullptr;
-	UniformBuffer<PointLight>* pointLightUbo = nullptr;
 
 	GLuint loadShader(std::string path, GLuint type);
 	void buildGeometryPassProgram();
@@ -109,9 +101,11 @@ private:
 	void buildPostPassProgram();
 
 	void loadMesh(scene::Mesh mesh);
+	void updateMeshInstances(Mesh& mesh, const scene::MeshId& meshId);
 
 	void generateQuadMesh();
 	void generateSphereMesh();
+	void updatePointLightInstances();
 
     void windowViewWillStart(tygra::Window * window) override;
 
