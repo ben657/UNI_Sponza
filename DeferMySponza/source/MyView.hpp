@@ -27,22 +27,30 @@ struct Mesh
 	GLuint instanceCount = 0;
 };
 
-struct Instance
-{
-	glm::mat4 transformationMatrix;
-	//Material material;
-};
-
 struct Material
 {
 	glm::vec3 diffuseColor;
 	float shininess = 0.0f;
 };
 
+struct MeshInstance
+{
+	glm::mat4 transformationMatrix;
+	glm::vec4 material;
+};
+
 struct DirectionalLight
 {
 	glm::vec3 direction;
 	int pad0 = 0;
+	glm::vec3 intensity;
+};
+
+struct PointLightInstance
+{
+	glm::mat4 transformationMatrix;
+	glm::vec3 position;
+	float range;
 	glm::vec3 intensity;
 };
 
@@ -90,7 +98,6 @@ private:
 	ShaderProgram* pointLightProgram;
 
 	std::map<scene::MaterialId, Material> materials;
-	UniformBuffer<Material>* materialUbo = nullptr;
 	UniformBuffer<DirectionalLight>* directionalLightUbo = nullptr;
 	UniformBuffer<PointLight>* pointLightUbo = nullptr;
 

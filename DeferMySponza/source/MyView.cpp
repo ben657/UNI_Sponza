@@ -36,26 +36,22 @@ void MyView::buildGeometryPassProgram()
 {
 	//TODO: set inputs/outputs manually, REMEMBER MATRIX STUFF, change draws to instanced
 	geometryProgram = new ShaderProgram("resource:///geom_vs.glsl", "resource:///geom_fs.glsl");
-	geometryProgram->setVertexInputs(
-		new char*[2]{
-		"vertexPosition",
-		"vertexNormal"
-	}, 2);
-	geometryProgram->setFragmentOutputs(
-		new char*[3]{
-		"gBufferPosition",
-		"gBufferNormal",
-		"gBufferMaterial"
-	}, 3);
+	geometryProgram->setVertexInput(0, "vertexPosition");
+	geometryProgram->setVertexInput(1, "vertexNormal");
+	geometryProgram->setVertexInput(2, "instanceMatrix");
+	geometryProgram->setVertexInput(6, "materialDiffuse");
+	geometryProgram->setVertexInput(7, "materialShininess");
+	geometryProgram->setFragmentOutput(0, "gBufferPosition");
+	geometryProgram->setFragmentOutput(1, "gBufferNormal");
+	geometryProgram->setFragmentOutput(2, "gBufferMaterial");
 	geometryProgram->build();
-	geometryProgram->bindUniformBuffer("Material", materialUbo->getIndex());
 }
 
 void MyView::buildAmbientPassProgram()
 {
 	ambientProgram = new ShaderProgram("resource:///ambient_vs.glsl", "resource:///ambient_fs.glsl");
-	ambientProgram->setVertexInputs(new char*[1]{ "vertexPosition" }, 1);
-	ambientProgram->setFragmentOutputs(new char*[1]{ "fragColor" }, 1);
+	ambientProgram->setVertexInput(0, "vertexPosition");
+	ambientProgram->setFragmentOutput(0, "fragColor");
 	GLuint status = ambientProgram->build();
 	
 	const glm::vec3& ambientColor = (const glm::vec3&)scene_->getAmbientLightIntensity();
@@ -65,22 +61,20 @@ void MyView::buildAmbientPassProgram()
 void MyView::buildDirectionalPassProgram()
 {
 	directionalLightProgram = new ShaderProgram("resource:///directional_vs.glsl", "resource:///directional_fs.glsl");
-	directionalLightProgram->setVertexInputs(new char*[1]{ "vertexPosition" }, 1);
-	directionalLightProgram->setFragmentOutputs(new char*[1]{ "fragColor" }, 1);
+	directionalLightProgram->setVertexInput(0, "vertexPosition");
+	directionalLightProgram->setFragmentOutput(0, "fragColor");
 	GLuint status = directionalLightProgram->build();
 
-	directionalLightProgram->bindUniformBuffer("Material", materialUbo->getIndex());
 	directionalLightProgram->bindUniformBuffer("DirectionalLight", directionalLightUbo->getIndex());
 }
 
 void MyView::buildPointPassProgram()
 {
 	pointLightProgram = new ShaderProgram("resource:///point_vs.glsl", "resource:///point_fs.glsl");
-	pointLightProgram->setVertexInputs(new char*[1]{ "vertexPosition" }, 1);
-	pointLightProgram->setFragmentOutputs(new char*[1]{ "fragColor" }, 1);
+	pointLightProgram->setVertexInput(0, "vertexPosition");
+	pointLightProgram->setFragmentOutput(0, "fragColor");
 	GLuint status = pointLightProgram->build();
 
-	pointLightProgram->bindUniformBuffer("Material", materialUbo->getIndex());
 	pointLightProgram->bindUniformBuffer("PointLight", pointLightUbo->getIndex());
 }
 
@@ -108,20 +102,20 @@ void MyView::loadMesh(scene::Mesh mesh)
 	const std::vector<unsigned int> elements = mesh.getElementArray();
 	newMesh.elementCount = elements.size();
 
-	std::vector<Instance> instances;
+	std::vector<MeshInstance> instances;
 	const std::vector<scene::InstanceId>& instanceIds = scene_->getInstancesByMeshId(mesh.getId());
 	for (const scene::InstanceId& id : instanceIds)
 	{
 		const scene::Instance& instance = scene_->getInstanceById(id);
-		Instance newInstance;
+		MeshInstance newInstance;
 
 		scene::Matrix4x3 sceneMatrix = instance.getTransformationMatrix();
 		glm::mat4x3 matrix = (const glm::mat4x3&)sceneMatrix;
 		newInstance.transformationMatrix = matrix;
 
-		/*scene::Material material = scene_->getMaterialById(instance.getMaterialId());
-		newInstance.material.diffuseColor = (const glm::vec3&)material.getDiffuseColour();
-		newInstance.material.shininess = material.getShininess();*/
+		scene::Material material = scene_->getMaterialById(instance.getMaterialId());
+		newInstance.material = (const glm::vec4&)material.getDiffuseColour();
+		newInstance.material.a = material.getShininess();
 
 		instances.push_back(newInstance);
 	}
@@ -134,7 +128,7 @@ void MyView::loadMesh(scene::Mesh mesh)
 
 	glGenBuffers(1, &newMesh.instanceVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, newMesh.instanceVbo);
-	glBufferData(GL_ARRAY_BUFFER, instances.size() * sizeof(Instance), instances.data(), GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, instances.size() * sizeof(MeshInstance), instances.data(), GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &newMesh.elementVbo);
@@ -146,17 +140,23 @@ void MyView::loadMesh(scene::Mesh mesh)
 	glBindVertexArray(newMesh.vao);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, newMesh.elementVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, newMesh.vertexVbo);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(0));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(sizeof(glm::vec3)));
-	for (int i = 2; i < 2 + 4; i++)
-	{
-		glEnableVertexAttribArray(i);
-		glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, sizeof(Instance), TGL_BUFFER_OFFSET(sizeof(glm::vec4) * i));
-		glVertexAttribDivisor(i, 1);
-	}
+	int attrib = 0;
+	glEnableVertexAttribArray(attrib);
+	glVertexAttribPointer(attrib++, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(0));
+	glEnableVertexAttribArray(attrib);
+	glVertexAttribPointer(attrib++, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), TGL_BUFFER_OFFSET(sizeof(glm::vec3)));
 
+	glBindBuffer(GL_ARRAY_BUFFER, newMesh.instanceVbo);
+	for (int i = 0; i < 4; i++)
+	{
+		glEnableVertexAttribArray(attrib);
+		glVertexAttribPointer(attrib, 4, GL_FLOAT, GL_FALSE, sizeof(MeshInstance), TGL_BUFFER_OFFSET(sizeof(glm::vec4) * i));
+		glVertexAttribDivisor(attrib++, 1);
+	}
+	glEnableVertexAttribArray(attrib);
+	glVertexAttribPointer(attrib, 4, GL_FLOAT, GL_FALSE, sizeof(MeshInstance), TGL_BUFFER_OFFSET(sizeof(glm::mat4)));
+	glVertexAttribDivisor(attrib++, 1);
+	
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -194,6 +194,15 @@ void MyView::generateSphereMesh()
 
 	sphereMesh.elementCount = mesh->indexCount();
 
+	/*const std::vector<scene::PointLight>& lights = scene_->getAllPointLights();
+	for (const scene::PointLight& light : lights)
+	{
+		MeshInstance newInstance;
+		glm::mat4 modelMatrix = glm::mat4();
+		modelMatrix = glm::translate(modelMatrix, light.);
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(light.range));
+	}*/
+
 	glGenBuffers(1, &sphereMesh.vertexVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.vertexVbo);
 	glBufferData(GL_ARRAY_BUFFER,
@@ -215,8 +224,9 @@ void MyView::generateSphereMesh()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereMesh.elementVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.vertexVbo);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-		sizeof(glm::vec3), 0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
+	
+	//glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.instanceVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 }
@@ -233,18 +243,7 @@ void MyView::windowViewWillStart(tygra::Window * window)
 	glGenTextures(1, &normalsTexture);
 	glGenTextures(1, &materialsTexture);
 	glGenTextures(1, &colorTexture);
-	
-	const std::vector<scene::Material>& sceneMaterials = scene_->getAllMaterials();
-	for (const scene::Material& material : sceneMaterials)
-	{
-		Material newMat;
-		newMat.diffuseColor = (const glm::vec3&)material.getDiffuseColour();
-		//newMat.specularColor = (const glm::vec3&)material.getSpecularColour();
-		newMat.shininess = material.getShininess();
-		materials[material.getId()] = newMat;
-	}
 
-	materialUbo = new UniformBuffer<Material>(0, GL_STREAM_DRAW);
 	directionalLightUbo = new UniformBuffer<DirectionalLight>(1, GL_STREAM_DRAW);
 	pointLightUbo = new UniformBuffer<PointLight>(2, GL_STREAM_DRAW);
 
@@ -385,7 +384,9 @@ void MyView::windowViewRender(tygra::Window * window)
 	for (auto& iterator = meshes.begin(); iterator != meshes.end(); iterator++)
 	{
 		Mesh mesh = iterator->second;
-		std::vector<scene::InstanceId> instances = scene_->getInstancesByMeshId(iterator->first);
+		glBindVertexArray(mesh.vao);
+		glDrawElementsInstanced(GL_TRIANGLES, mesh.elementCount, GL_UNSIGNED_INT, 0, mesh.instanceCount);
+		/*std::vector<scene::InstanceId> instances = scene_->getInstancesByMeshId(iterator->first);
 		for (scene::InstanceId id : instances)
 		{
 			scene::Instance instance = scene_->getInstanceById(id);
@@ -397,7 +398,7 @@ void MyView::windowViewRender(tygra::Window * window)
 
 			glBindVertexArray(mesh.vao);
 			glDrawElements(GL_TRIANGLES, mesh.elementCount, GL_UNSIGNED_INT, 0);
-		}
+		}*/
 	}
 
 	//Bind lBuffer, do light shading

@@ -26,7 +26,7 @@ public:
 	~ShaderProgram();
 
 	void setVertexInput(int location, const char* inputName) { vertexInputs[location] = inputName; }
-	void setFragmentInput(int location, const char* outputName) { fragmentOutputs[location] = outputName; }
+	void setFragmentOutput(int location, const char* outputName) { fragmentOutputs[location] = outputName; }
 	
 	GLint build();
 	GLuint& getProgram() { return program; }
