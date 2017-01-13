@@ -338,6 +338,8 @@
     <None Include="shaders\point_vs.glsl" />
     <None Include="shaders\post_fs.glsl" />
     <None Include="shaders\post_vs.glsl" />
+    <None Include="shaders\shadow_fs.glsl" />
+    <None Include="shaders\shadow_vs.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
