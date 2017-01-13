@@ -83,5 +83,11 @@
     <None Include="shaders\shadow_vs.glsl">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="shaders\spot_fs.glsl">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\spot_vs.glsl">
+      <Filter>Shader Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

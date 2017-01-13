@@ -46,12 +46,20 @@ struct DirectionalLight
 	glm::vec3 intensity;
 };
 
-struct PointLightInstance
+struct PointLight
 {
-	glm::mat4 transformationMatrix;
 	glm::vec3 position;
-	glm::vec3 intensity;
 	float range;
+	glm::vec3 intensity;
+};
+
+struct SpotLight
+{
+	glm::vec3 position;
+	float range = 0;
+	glm::vec3 direction;
+	float coneAngle = 0;
+	glm::vec3 intensity;
 };
 
 class MyView : public tygra::WindowViewDelegate
@@ -86,16 +94,20 @@ private:
 
 	Mesh quadMesh;
 	Mesh sphereMesh;
+	Mesh coneMesh;
 	std::map<scene::MeshId, Mesh> meshes;
 
-	ShaderProgram* geometryProgram;
-	ShaderProgram* ambientProgram;
-	ShaderProgram* shadowProgram;
-	ShaderProgram* directionalLightProgram;
-	ShaderProgram* pointLightProgram;
+	ShaderProgram* geometryProgram = nullptr;
+	ShaderProgram* ambientProgram = nullptr;
+	ShaderProgram* shadowProgram = nullptr;
+	ShaderProgram* directionalLightProgram = nullptr;
+	ShaderProgram* pointLightProgram = nullptr;
+	ShaderProgram* spotLightProgram = nullptr;
 
 	std::map<scene::MaterialId, Material> materials;
 	UniformBuffer<DirectionalLight>* directionalLightUbo = nullptr;
+	UniformBuffer<PointLight>* pointLightUbo = nullptr;
+	UniformBuffer<SpotLight>* spotLightUbo = nullptr;
 
 	GLuint loadShader(std::string path, GLuint type);
 	void buildGeometryPassProgram();
@@ -103,6 +115,7 @@ private:
 	void buildAmbientPassProgram();
 	void buildDirectionalPassProgram();
 	void buildPointPassProgram();
+	void buildSpotPassProgram();
 	void buildPostPassProgram();
 
 	void loadMesh(scene::Mesh mesh);
@@ -110,7 +123,7 @@ private:
 
 	void generateQuadMesh();
 	void generateSphereMesh();
-	void updatePointLightInstances();
+	void generateConeMesh();
 
     void windowViewWillStart(tygra::Window * window) override;
 
@@ -127,7 +140,7 @@ private:
 	void enablePointLightSettings();
 	void drawSponza();
 	void drawQuad();
-	void drawSpheres();
+	void drawSphere();
     void windowViewRender(tygra::Window * window) override;
 
     const scene::Context * scene_;

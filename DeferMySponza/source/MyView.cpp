@@ -80,12 +80,18 @@ void MyView::buildPointPassProgram()
 {
 	pointLightProgram = new ShaderProgram("resource:///point_vs.glsl", "resource:///point_fs.glsl");
 	pointLightProgram->setVertexInput(0, "vertexPosition");
-	pointLightProgram->setVertexInput(1, "instanceMatrix");
-	pointLightProgram->setVertexInput(5, "lightPosition");
-	pointLightProgram->setVertexInput(6, "lightIntensity");
-	pointLightProgram->setVertexInput(7, "lightRange");
 	pointLightProgram->setFragmentOutput(0, "fragColor");
 	GLuint status = pointLightProgram->build();
+}
+
+void MyView::buildSpotPassProgram()
+{
+	spotLightProgram = new ShaderProgram("resource:///spot_vs.glsl", "resource:///spot_fs.glsl");
+	spotLightProgram->setVertexInput(0, "vertexPosition");
+	spotLightProgram->setFragmentOutput(0, "fragColor");
+	GLuint status = spotLightProgram->build();
+
+	spotLightProgram->bindUniformBuffer("SpotLight", spotLightUbo->getIndex());
 }
 
 void MyView::buildPostPassProgram()
@@ -221,12 +227,6 @@ void MyView::generateSphereMesh()
 		mesh->vertexCount() * sizeof(glm::vec3),
 		mesh->positionArray(),
 		GL_STATIC_DRAW);
-
-	const std::vector<scene::PointLight>& lights = scene_->getAllPointLights();
-	glGenBuffers(1, &sphereMesh.instanceVbo);
-	glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.instanceVbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(PointLightInstance) * lights.size(), 0, GL_DYNAMIC_DRAW);
-	updatePointLightInstances();
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &sphereMesh.elementVbo);
@@ -241,55 +241,17 @@ void MyView::generateSphereMesh()
 	glBindVertexArray(sphereMesh.vao);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereMesh.elementVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.vertexVbo);
-	int attrib = 0;
-	glEnableVertexAttribArray(attrib);
-	glVertexAttribPointer(attrib++, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
-	
-	glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.instanceVbo);
-	for (int i = 0; i < 4; i++)
-	{
-		glEnableVertexAttribArray(attrib);
-		glVertexAttribPointer(attrib, 4, GL_FLOAT, GL_FALSE, sizeof(PointLightInstance), TGL_BUFFER_OFFSET(sizeof(glm::vec4) * i));
-		glVertexAttribDivisor(attrib++, 1);
-	}
-	glEnableVertexAttribArray(attrib);
-	glVertexAttribPointer(attrib, 3, GL_FLOAT, GL_FALSE, sizeof(PointLightInstance), TGL_BUFFER_OFFSET(sizeof(glm::mat4)));
-	glVertexAttribDivisor(attrib++, 1);
-
-	glEnableVertexAttribArray(attrib);
-	glVertexAttribPointer(attrib, 3, GL_FLOAT, GL_FALSE, sizeof(PointLightInstance), TGL_BUFFER_OFFSET(sizeof(glm::mat4) + sizeof(glm::vec3)));
-	glVertexAttribDivisor(attrib++, 1);
-
-	glEnableVertexAttribArray(attrib);
-	glVertexAttribPointer(attrib, 1, GL_FLOAT, GL_FALSE, sizeof(PointLightInstance), TGL_BUFFER_OFFSET(sizeof(glm::mat4) + sizeof(glm::vec3) * 2));
-	glVertexAttribDivisor(attrib++, 1);
-
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
+	//TODO: get point lights working again
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 }
 
-void MyView::updatePointLightInstances()
+void MyView::generateConeMesh()
 {
-	std::vector<PointLightInstance> instances;
-	const std::vector<scene::PointLight>& lights = scene_->getAllPointLights();
-	for (const scene::PointLight& light : lights)
-	{
-		PointLightInstance newInstance;
-		glm::mat4 modelMatrix = glm::mat4();
-		modelMatrix = glm::translate(modelMatrix, (const glm::vec3&)light.getPosition());
-		modelMatrix = glm::scale(modelMatrix, glm::vec3(light.getRange()));
-		newInstance.transformationMatrix = modelMatrix;
-
-		newInstance.position = (const glm::vec3&)light.getPosition();
-		newInstance.range = light.getRange();
-		newInstance.intensity = (const glm::vec3&)light.getIntensity();
-		instances.push_back(newInstance);
-	}
-	sphereMesh.instanceCount = instances.size();
-
-	glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.instanceVbo);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(PointLightInstance) * instances.size(), instances.data());
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	tsl::IndexedMeshPtr mesh = tsl::createConePtr(1.0f, 1.0f, 12);
+	mesh = tsl::cloneIndexedMeshAsTriangleListPtr(mesh.get());
 }
 
 void MyView::windowViewWillStart(tygra::Window * window)
@@ -308,12 +270,16 @@ void MyView::windowViewWillStart(tygra::Window * window)
 	glGenFramebuffers(1, &shadowBuffer);
 	glGenTextures(1, &shadowMap);
 
-	directionalLightUbo = new UniformBuffer<DirectionalLight>(1, GL_STREAM_DRAW);
+	directionalLightUbo = new UniformBuffer<DirectionalLight>(0, GL_STREAM_DRAW);
+	pointLightUbo = new UniformBuffer<PointLight>(1, GL_STREAM_DRAW);
+	spotLightUbo = new UniformBuffer<SpotLight>(2, GL_STREAM_DRAW);
 
 	buildGeometryPassProgram();
+	buildShadowProgram();
 	buildAmbientPassProgram();
 	buildDirectionalPassProgram();
 	buildPointPassProgram();
+	buildSpotPassProgram();
 
 	generateQuadMesh();
 	generateSphereMesh();
@@ -387,13 +353,13 @@ void MyView::windowViewDidReset(tygra::Window * window,
 
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowBuffer);
 
-	glBindTexture(GL_TEXTURE_RECTANGLE, shadowMap);
-	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_DEPTH_COMPONENT16, shadowMapResolution, shadowMapResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_RECTANGLE, shadowMap, 0);
+	glBindTexture(GL_TEXTURE_2D, shadowMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, shadowMapResolution, shadowMapResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
 
 	framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE) {
@@ -430,6 +396,8 @@ void MyView::enableGeometrySettings()
 	glDisable(GL_BLEND);
 
 	glCullFace(GL_BACK);
+
+	glUseProgram(geometryProgram->getProgram());
 }
 
 void MyView::enableAmbientSettings()
@@ -445,13 +413,30 @@ void MyView::enableAmbientSettings()
 	glDisable(GL_BLEND);
 
 	glCullFace(GL_BACK);
+
+	glUseProgram(ambientProgram->getProgram());
 }
 
 void MyView::enableShadowSettings()
 {
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LEQUAL);
+
 	glEnable(GL_STENCIL_TEST);
-	glStencilFunc(GL_EQUAL, 1, ~0);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+	glStencilFunc(GL_ALWAYS, 1, ~0);
+	glStencilMask(~0);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+	glDisable(GL_BLEND);
+
+	glCullFace(GL_BACK);
+
+	glViewport(0, 0, shadowMapResolution, shadowMapResolution);
+
+	glUseProgram(shadowProgram->getProgram());
 }
 
 void MyView::enableDirectionalLightSettings()
@@ -469,6 +454,8 @@ void MyView::enableDirectionalLightSettings()
 	glBlendFunc(GL_ONE, GL_ONE);
 
 	glCullFace(GL_BACK);
+
+	glUseProgram(directionalLightProgram->getProgram());
 }
 
 void MyView::enablePointLightSettings()
@@ -488,6 +475,8 @@ void MyView::enablePointLightSettings()
 	glBlendFunc(GL_ONE, GL_ONE);
 
 	glCullFace(GL_FRONT);
+
+	glUseProgram(pointLightProgram->getProgram());
 }
 
 void MyView::drawSponza()
@@ -498,7 +487,7 @@ void MyView::drawSponza()
 		updateMeshInstances(mesh, iterator->first);
 
 		glBindVertexArray(mesh.vao);
-		glDrawElementsInstanced(GL_TRIANGLES, mesh.elementCount, GL_UNSIGNED_INT, 0, mesh.instanceCount);
+		glDrawElementsInstanced(GL_TRIANGLES, mesh.elementCount, GL_UNSIGNED_INT, TGL_BUFFER_OFFSET(0), mesh.instanceCount);
 	}
 }
 
@@ -508,10 +497,10 @@ void MyView::drawQuad()
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 }
 
-void MyView::drawSpheres()
+void MyView::drawSphere()
 {
 	glBindVertexArray(sphereMesh.vao);
-	glDrawElementsInstanced(GL_TRIANGLES, sphereMesh.elementCount, GL_UNSIGNED_INT, 0, sphereMesh.instanceCount);
+	glDrawElements(GL_TRIANGLES, sphereMesh.elementCount, GL_UNSIGNED_INT, TGL_BUFFER_OFFSET(0));
 }
 
 void MyView::windowViewRender(tygra::Window * window)
@@ -576,20 +565,7 @@ void MyView::windowViewRender(tygra::Window * window)
 	DirectionalLight dLight;
 	for (const scene::DirectionalLight& light : directionalLights)
 	{
-		const glm::vec3& direction = (const glm::vec3&)light.getDirection();
-		/*glm::mat4 shadowViewMatrix = glm::lookAt(direction * -1.0f, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-		glBindFramebuffer(GL_FRAMEBUFFER, shadowBuffer);
-		glDrawBuffers(1, shadowDrawBuffers);*/
-
-		/*enableShadowSettings();
-		shadowProgram->uploadMatrixUniform(shadowProjectionMatrix * shadowViewMatrix, "combinedMatrix");
-
-		drawSponza();*/
-
-		//enableDirectionalLightSettings();
-
-		dLight.direction = direction;
+		dLight.direction = (const glm::vec3&)light.getDirection();
 		dLight.intensity = (const glm::vec3&) light.getIntensity();
 		directionalLightUbo->bufferData(&dLight);
 		drawQuad();
@@ -601,12 +577,27 @@ void MyView::windowViewRender(tygra::Window * window)
 	pointLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
 	pointLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
 	pointLightProgram->activateTextureSamplerUniform(2, materialsTexture, "materialSampler");
-	pointLightProgram->uploadMatrixUniform(projViewMatrix, "projViewMatrix");
 	pointLightProgram->uploadVector3Uniform(cameraPos, "cameraPosition");
 	glUseProgram(pointLightProgram->getProgram());
 
-	updatePointLightInstances();
-	drawSpheres();
+	const std::vector<scene::PointLight>& pointLights = scene_->getAllPointLights();
+	PointLight pLight;
+	for (const scene::PointLight light : pointLights)
+	{
+		pLight.position = (const glm::vec3&)light.getPosition();
+		pLight.range = light.getRange();
+		pLight.intensity = (const glm::vec3&)light.getIntensity();
+		pointLightUbo->bufferData(&pLight);
+
+		glm::mat4 modelMatrix = glm::mat4();
+		modelMatrix = glm::translate(modelMatrix, pLight.position);
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(pLight.range));
+
+		glm::mat4 combinedMatrix = projViewMatrix * modelMatrix;
+		pointLightProgram->uploadMatrixUniform(combinedMatrix, "combinedMatrix");
+
+		drawSphere();
+	}
 
 	//Blit lBuffer to screen
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, lBuffer);
