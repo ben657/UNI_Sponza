@@ -66,8 +66,7 @@ public:
 
 private:
 
-	const GLuint vertexPositionLocation = 0;
-	const GLuint vertexNormalLocation = 1;
+	const GLuint shadowMapResolution = 1024;
 
 	GLenum defaultDrawBuffers[2] = { GL_FRONT_LEFT, GL_BACK_LEFT };
 	GLuint gBuffer = 0;
@@ -81,12 +80,17 @@ private:
 	GLuint materialsTexture = 0;
 	GLuint colorTexture = 0;
 
+	GLenum shadowDrawBuffers[1] = { GL_NONE };
+	GLuint shadowBuffer = 0;
+	GLuint shadowMap = 0;
+
 	Mesh quadMesh;
 	Mesh sphereMesh;
 	std::map<scene::MeshId, Mesh> meshes;
 
 	ShaderProgram* geometryProgram;
 	ShaderProgram* ambientProgram;
+	ShaderProgram* shadowProgram;
 	ShaderProgram* directionalLightProgram;
 	ShaderProgram* pointLightProgram;
 
@@ -95,6 +99,7 @@ private:
 
 	GLuint loadShader(std::string path, GLuint type);
 	void buildGeometryPassProgram();
+	void buildShadowProgram();
 	void buildAmbientPassProgram();
 	void buildDirectionalPassProgram();
 	void buildPointPassProgram();
@@ -115,6 +120,14 @@ private:
 
     void windowViewDidStop(tygra::Window * window) override;
 
+	void enableGeometrySettings();
+	void enableAmbientSettings();
+	void enableShadowSettings();
+	void enableDirectionalLightSettings();
+	void enablePointLightSettings();
+	void drawSponza();
+	void drawQuad();
+	void drawSpheres();
     void windowViewRender(tygra::Window * window) override;
 
     const scene::Context * scene_;
