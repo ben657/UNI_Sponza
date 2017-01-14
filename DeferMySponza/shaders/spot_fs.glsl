@@ -6,10 +6,12 @@ struct Material
 	float shininess;
 } material;
 
-layout(std140) uniform PointLight
+layout(std140) uniform SpotLight
 {
 	vec3 position;
 	float range;
+	vec3 direction;
+	float coneAngle;
 	vec3 intensity;
 } light;
 
