@@ -82,6 +82,8 @@ void MyView::buildPointPassProgram()
 	pointLightProgram->setVertexInput(0, "vertexPosition");
 	pointLightProgram->setFragmentOutput(0, "fragColor");
 	GLuint status = pointLightProgram->build();
+
+	pointLightProgram->bindUniformBuffer("PointLight", pointLightUbo->getIndex());
 }
 
 void MyView::buildSpotPassProgram()
@@ -243,7 +245,6 @@ void MyView::generateSphereMesh()
 	glBindBuffer(GL_ARRAY_BUFFER, sphereMesh.vertexVbo);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
-	//TODO: get point lights working again
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 }
@@ -252,6 +253,27 @@ void MyView::generateConeMesh()
 {
 	tsl::IndexedMeshPtr mesh = tsl::createConePtr(1.0f, 1.0f, 12);
 	mesh = tsl::cloneIndexedMeshAsTriangleListPtr(mesh.get());
+
+	coneMesh.elementCount = mesh->indexCount();
+
+	glGenBuffers(1, &coneMesh.vertexVbo);
+	glBindBuffer(GL_ARRAY_BUFFER, coneMesh.vertexVbo);
+	glBufferData(GL_ARRAY_BUFFER, mesh->vertexCount() * sizeof(glm::vec3), mesh->positionArray(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glGenBuffers(1, &coneMesh.elementVbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, coneMesh.elementVbo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->indexCount() * sizeof(GLuint), mesh->indexArray(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	glGenVertexArrays(1, &coneMesh.vao);
+	glBindVertexArray(coneMesh.vao);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, coneMesh.elementVbo);
+	glBindBuffer(GL_ARRAY_BUFFER, coneMesh.vertexVbo);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 
 void MyView::windowViewWillStart(tygra::Window * window)
@@ -283,6 +305,7 @@ void MyView::windowViewWillStart(tygra::Window * window)
 
 	generateQuadMesh();
 	generateSphereMesh();
+	generateConeMesh();
 
 	scene::GeometryBuilder builder;
 	for (const scene::Mesh& mesh : builder.getAllMeshes())
@@ -458,7 +481,7 @@ void MyView::enableDirectionalLightSettings()
 	glUseProgram(directionalLightProgram->getProgram());
 }
 
-void MyView::enablePointLightSettings()
+void MyView::enableLightSettings()
 {
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_FALSE);
@@ -501,6 +524,12 @@ void MyView::drawSphere()
 {
 	glBindVertexArray(sphereMesh.vao);
 	glDrawElements(GL_TRIANGLES, sphereMesh.elementCount, GL_UNSIGNED_INT, TGL_BUFFER_OFFSET(0));
+}
+
+void MyView::drawCone()
+{
+	glBindVertexArray(coneMesh.vao);
+	glDrawElements(GL_TRIANGLES, coneMesh.elementCount, GL_UNSIGNED_INT, TGL_BUFFER_OFFSET(0));
 }
 
 void MyView::windowViewRender(tygra::Window * window)
@@ -572,7 +601,7 @@ void MyView::windowViewRender(tygra::Window * window)
 	}
 
 	//Re-enable depth test for point lights
-	enablePointLightSettings();
+	enableLightSettings();
 	
 	pointLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
 	pointLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
@@ -593,10 +622,36 @@ void MyView::windowViewRender(tygra::Window * window)
 		modelMatrix = glm::translate(modelMatrix, pLight.position);
 		modelMatrix = glm::scale(modelMatrix, glm::vec3(pLight.range));
 
-		glm::mat4 combinedMatrix = projViewMatrix * modelMatrix;
-		pointLightProgram->uploadMatrixUniform(combinedMatrix, "combinedMatrix");
+		pointLightProgram->uploadMatrixUniform(projViewMatrix * modelMatrix, "combinedMatrix");
 
 		drawSphere();
+	}
+
+	spotLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
+	spotLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
+	spotLightProgram->activateTextureSamplerUniform(2, materialsTexture, "materialSampler");
+	spotLightProgram->uploadVector3Uniform(cameraPos, "cameraPosition");
+
+	const std::vector<scene::SpotLight>& spotLights = scene_->getAllSpotLights();
+	SpotLight sLight;
+	for (const scene::SpotLight& light : spotLights)
+	{
+		sLight.position = (const glm::vec3&)light.getPosition();
+		sLight.range = light.getRange();
+		sLight.intensity = (const glm::vec3&)light.getIntensity();
+		sLight.coneAngle = glm::radians(light.getConeAngleDegrees());
+		sLight.direction = (const glm::vec3&)light.getDirection();
+		spotLightUbo->bufferData(&sLight);
+
+		glm::mat4 modelMatrix = glm::mat4();
+		float radius = sLight.range * glm::tan(glm::radians(light.getConeAngleDegrees() * 0.5f));
+		modelMatrix = glm::translate(modelMatrix, sLight.position + sLight.direction * sLight.range);
+		modelMatrix = glm::transpose(glm::lookAt(glm::vec3(0.0f), sLight.direction, glm::vec3(0.0f, 1.0f, 0.0f)));
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(radius, radius, sLight.range));
+		
+		spotLightProgram->uploadMatrixUniform(projViewMatrix * modelMatrix, "combinedMatrix");
+
+		drawCone();
 	}
 
 	//Blit lBuffer to screen

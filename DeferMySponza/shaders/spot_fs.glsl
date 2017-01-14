@@ -60,5 +60,6 @@ void main(void)
 	vec3 lightDirection = normalize(positionToLight);
 	float distanceToLight = length(positionToLight);
 
-	fragColor = pointLight(normal, viewDirection, lightDirection, distanceToLight);
+	//fragColor = pointLight(normal, viewDirection, lightDirection, distanceToLight);
+	fragColor = vec3(1.0f, 0.0f, 0.0f);
 }

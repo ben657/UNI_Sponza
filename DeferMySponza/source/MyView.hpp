@@ -137,10 +137,11 @@ private:
 	void enableAmbientSettings();
 	void enableShadowSettings();
 	void enableDirectionalLightSettings();
-	void enablePointLightSettings();
+	void enableLightSettings();
 	void drawSponza();
 	void drawQuad();
 	void drawSphere();
+	void drawCone();
     void windowViewRender(tygra::Window * window) override;
 
     const scene::Context * scene_;
