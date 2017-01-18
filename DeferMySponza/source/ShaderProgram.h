@@ -34,5 +34,5 @@ public:
 	void bindUniformBuffer(const char* uniformName, const GLuint& uniformBufferIndex);
 	void uploadMatrixUniform(const glm::mat4& matrix, const char* uniformName);
 	void uploadVector3Uniform(const glm::vec3& vector, const char* uniformName);
-	void activateTextureSamplerUniform(const GLuint textureUnit, GLuint texture, const char* uniformName);
+	void activateTextureSamplerUniform(const GLuint textureUnit, GLuint texture, const char* uniformName, const GLenum target = GL_TEXTURE_RECTANGLE);
 };

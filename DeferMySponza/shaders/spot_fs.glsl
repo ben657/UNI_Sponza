@@ -18,10 +18,21 @@ layout(std140) uniform SpotLight
 uniform sampler2DRect positionSampler;
 uniform sampler2DRect normalSampler;
 uniform sampler2DRect materialSampler;
+uniform sampler2D shadowSampler;
 
 uniform vec3 cameraPosition;
+uniform mat4 lightProjViewMatrix;
 
 out vec3 fragColor;
+
+bool inShadow(vec3 lightSpaceCoord, vec3 normal)
+{
+	vec3 shadowCoords = lightSpaceCoord.xyz * 0.5f + 0.5f;
+	float bias = 0.00005f;
+	float fragDepth = shadowCoords.z - bias;
+	float shadowDepth = texture(shadowSampler, shadowCoords.xy).r;
+	return shadowDepth < fragDepth;
+}
 
 vec3 phong(vec3 normal, vec3 viewDirection, vec3 lightDirection)
 {
@@ -34,7 +45,7 @@ vec3 phong(vec3 normal, vec3 viewDirection, vec3 lightDirection)
 		specularIntensity = pow(specularAngle, material.shininess);
 	}
 
-	return material.color * diffuseIntensity;// +vec3(1.0f, 1.0f, 1.0f) * specularIntensity;
+	return material.color * diffuseIntensity + vec3(1.0f, 1.0f, 1.0f) * specularIntensity;
 }
 
 vec3 spotLight(vec3 normal, vec3 viewDirection, vec3 lightDirection, float distanceToLight)
@@ -42,7 +53,10 @@ vec3 spotLight(vec3 normal, vec3 viewDirection, vec3 lightDirection, float dista
 	float spot = dot(lightDirection, -light.direction);
 	if (spot > light.cutoff)
 	{
-		float attenuation = smoothstep(light.range, 0, distanceToLight);
+		float spotExp = 0.0f;
+		float d = clamp(distanceToLight, 0, light.range);
+		float attenuation = (light.range - d) / light.range;
+		attenuation *= pow(spot, spotExp);
 		vec3 l = light.intensity * phong(normal, viewDirection, lightDirection);
 		return  l * attenuation;
 	}
@@ -65,5 +79,10 @@ void main(void)
 	vec3 lightDirection = normalize(positionToLight);
 	float distanceToLight = length(positionToLight);
 
-	fragColor = spotLight(normal, viewDirection, lightDirection, distanceToLight);
+	vec4 lightSpaceCoord = lightProjViewMatrix * vec4(position, 1.0f);
+
+	if (!inShadow(lightSpaceCoord.xyz / lightSpaceCoord.w, normal))
+		fragColor = spotLight(normal, viewDirection, lightDirection, distanceToLight);
+	else
+		fragColor = vec3(0.0f, 0.0f, 0.0f);
 }

@@ -51,7 +51,7 @@ void MyView::buildShadowProgram()
 {
 	shadowProgram = new ShaderProgram("resource:///shadow_vs.glsl", "resource:///shadow_fs.glsl");
 	shadowProgram->setVertexInput(0, "vertexPosition");
-	shadowProgram->setFragmentOutput(0, "fragDepth");
+	shadowProgram->setVertexInput(2, "instanceMatrix");
 	GLuint status = shadowProgram->build();
 }
 
@@ -351,6 +351,8 @@ void MyView::windowViewDidReset(tygra::Window * window,
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_RECTANGLE, materialsTexture, 0);
 
+	glDrawBuffers(3, gBufferDrawBuffers);
+
 	GLint framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE) {
 		tglDebugMessage(GL_DEBUG_SEVERITY_HIGH_ARB, "gBuffer not complete");
@@ -366,6 +368,7 @@ void MyView::windowViewDidReset(tygra::Window * window,
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, colorTexture, 0);
 
 	glBindTexture(GL_TEXTURE_RECTANGLE, 0);
+	glDrawBuffers(1, lBufferDrawBuffers);
 
 	framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE) {
@@ -375,12 +378,15 @@ void MyView::windowViewDidReset(tygra::Window * window,
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowBuffer);
 
 	glBindTexture(GL_TEXTURE_2D, shadowMap);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, shadowMapResolution, shadowMapResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowMapResolution, shadowMapResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMap, 0);
+
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
 
 	framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE) {
@@ -435,8 +441,6 @@ void MyView::enableAmbientSettings()
 	glDisable(GL_DEPTH_TEST);
 
 	glDisable(GL_STENCIL_TEST);
-	glStencilFunc(GL_EQUAL, 1, ~0);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -455,11 +459,8 @@ void MyView::enableShadowSettings()
 	glDepthFunc(GL_LEQUAL);
 
 	glDisable(GL_STENCIL_TEST);
-	glStencilFunc(GL_ALWAYS, 1, ~0);
-	glStencilMask(~0);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 
-	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 	glDisable(GL_BLEND);
 
@@ -477,6 +478,7 @@ void MyView::enableDirectionalLightSettings()
 
 	glDisable(GL_STENCIL_TEST);
 	glStencilFunc(GL_EQUAL, 1, ~0);
+	glStencilMask(~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -491,14 +493,31 @@ void MyView::enableDirectionalLightSettings()
 	glUseProgram(directionalLightProgram->getProgram());
 }
 
-void MyView::enablePointLightSettings()
+void MyView::enableVolumeStencilSettings()
 {
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_FALSE);
-	glDepthFunc(GL_GREATER);
+	glDepthFunc(GL_LEQUAL);
+
+	glEnable(GL_STENCIL_TEST);
+	glStencilFunc(GL_ALWAYS, 1, ~0);
+	glStencilMask(~0);
+	glStencilOpSeparate(GL_BACK, GL_KEEP, GL_INCR_WRAP, GL_KEEP);
+	glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
+
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+	glDisable(GL_BLEND);
+	glDisable(GL_CULL_FACE);
+}
+
+void MyView::enablePointLightSettings()
+{
+	glDisable(GL_DEPTH_TEST);
 	
-	glDisable(GL_STENCIL_TEST);
-	glStencilFunc(GL_EQUAL, 1, ~0);
+	glEnable(GL_STENCIL_TEST);
+	glStencilFunc(GL_NOTEQUAL, 0, ~0);
+	glStencilMask(~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -507,7 +526,7 @@ void MyView::enablePointLightSettings()
 	glBlendEquation(GL_FUNC_ADD);
 	glBlendFunc(GL_ONE, GL_ONE);
 
-	glEnable(GL_CULL_FACE);
+	glEnable (GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 
 	glUseProgram(pointLightProgram->getProgram());
@@ -515,12 +534,11 @@ void MyView::enablePointLightSettings()
 
 void MyView::enableSpotLightSettings()
 {
-	glEnable(GL_DEPTH_TEST);
-	glDepthMask(GL_FALSE);
-	glDepthFunc(GL_GREATER);
+	glDisable(GL_DEPTH_TEST);
 
-	glDisable(GL_STENCIL_TEST);
-	glStencilFunc(GL_EQUAL, 1, ~0);
+	glEnable(GL_STENCIL_TEST);
+	glStencilFunc(GL_NOTEQUAL, 0, ~0);
+	glStencilMask(~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -573,7 +591,6 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	//Set draw buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
-	glDrawBuffers(3, gBufferDrawBuffers);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClearStencil(0);
@@ -585,11 +602,11 @@ void MyView::windowViewRender(tygra::Window * window)
 	int width = viewportSize[2];
 	int height = viewportSize[3];
 	const float aspectRatio = (float)width / (float)height;
-	glm::mat4 projectionMatrix = glm::perspective(glm::radians(90.0f), aspectRatio, 1.f, 1000.f);
 
 	const scene::Camera& camera = scene_->getCamera();
 	glm::vec3 cameraPos = (const glm::vec3&)camera.getPosition();
 	glm::vec3 cameraDir = (const glm::vec3&)camera.getDirection();
+	glm::mat4 projectionMatrix = glm::perspective(glm::radians(camera.getVerticalFieldOfViewInDegrees()), aspectRatio, 1.f, 1000.f);
 	glm::mat4 viewMatrix = glm::lookAt(cameraPos, cameraPos + cameraDir, glm::vec3(0.f, 1.f, 0.f));
 	glm::mat4 projViewMatrix = projectionMatrix * viewMatrix;
 
@@ -603,7 +620,6 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	//Set lBuffer as active framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
-	glDrawBuffers(1, lBufferDrawBuffers);
 
 	glClearColor(0.33f, 0.22f, 0.5f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -621,8 +637,6 @@ void MyView::windowViewRender(tygra::Window * window)
 	directionalLightProgram->uploadVector3Uniform(cameraPos, "cameraPosition");
 	glUseProgram(directionalLightProgram->getProgram());
 
-	glm::mat4 shadowProjectionMatrix = glm::ortho(-10, 10, -10, 10, -10, 20);
-
 	const std::vector<scene::DirectionalLight>& directionalLights = scene_->getAllDirectionalLights();
 	DirectionalLight dLight;
 	for (const scene::DirectionalLight& light : directionalLights)
@@ -632,9 +646,6 @@ void MyView::windowViewRender(tygra::Window * window)
 		directionalLightUbo->bufferData(&dLight);
 		drawQuad();
 	}
-
-	//Re-enable depth test for point lights
-	enablePointLightSettings();
 	
 	pointLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
 	pointLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
@@ -656,7 +667,12 @@ void MyView::windowViewRender(tygra::Window * window)
 		modelMatrix = glm::scale(modelMatrix, glm::vec3(pLight.range));
 
 		pointLightProgram->uploadMatrixUniform(projViewMatrix * modelMatrix, "combinedMatrix");
+		
+		enableVolumeStencilSettings();
+		glClear(GL_STENCIL_BUFFER_BIT);
+		drawSphere();
 
+		enablePointLightSettings();
 		drawSphere();
 	}
 	//test sphere
@@ -673,11 +689,10 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	drawSphere();*/
 
-	enableSpotLightSettings();
-
 	spotLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
 	spotLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
 	spotLightProgram->activateTextureSamplerUniform(2, materialsTexture, "materialSampler");
+	spotLightProgram->activateTextureSamplerUniform(3, shadowMap, "shadowSampler", GL_TEXTURE_2D);
 	spotLightProgram->uploadVector3Uniform(cameraPos, "cameraPosition");
 
 	const std::vector<scene::SpotLight>& spotLights = scene_->getAllSpotLights();
@@ -686,15 +701,31 @@ void MyView::windowViewRender(tygra::Window * window)
 	//for (const scene::SpotLight& light : spotLights)
 	for(int i = 0; i < 1; i++)
 	{
-		scene::SpotLight light = spotLights[i];
-		float spotAngle = glm::radians(45.0f);
+		const scene::SpotLight& light = spotLights[i];
 
-		sLight.position = glm::vec3(0.0f, 10.0f, 0.0f);//(const glm::vec3&)light.getPosition();
-		sLight.range = 15.0f;//light.getRange();
+		float spotAngle = glm::radians(light.getConeAngleDegrees());
+
+		sLight.position = (const glm::vec3&)light.getPosition();
+		sLight.range = light.getRange();
 		sLight.intensity = (const glm::vec3&)light.getIntensity();
 		sLight.cutoff = glm::cos(spotAngle);
-		sLight.direction = glm::vec3(0.0f, -1.0f, 0.0f);//(const glm::vec3&)light.getDirection();
+		sLight.direction = (const glm::vec3&)light.getDirection();
 		spotLightUbo->bufferData(&sLight);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowBuffer);
+		enableShadowSettings();
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		glViewport(0, 0, shadowMapResolution, shadowMapResolution);
+
+		glm::mat4 lightProjection = glm::perspective(spotAngle, 1.0f, 1.0f, 1000.0f);
+		glm::mat4 lightView = glm::lookAt(sLight.position, sLight.position + sLight.direction, glm::vec3(0.0f, 1.0f, 0.0f));
+		shadowProgram->uploadMatrixUniform(lightProjection * lightView, "projViewMatrix");
+
+		drawSponza();
+
+		glBindFramebuffer(GL_FRAMEBUFFER, lBuffer);
+		glViewport(0, 0, width, height);
 
 		float radius = sLight.range * glm::tan(spotAngle * 0.5f);
 		glm::mat4 modelMatrix = glm::mat4();
@@ -702,7 +733,13 @@ void MyView::windowViewRender(tygra::Window * window)
 		modelMatrix *= directionLookat(spotLightForward, sLight.direction);
 		modelMatrix = glm::scale(modelMatrix, glm::vec3(radius, radius, sLight.range));
 		spotLightProgram->uploadMatrixUniform(projViewMatrix * modelMatrix, "combinedMatrix");
+		spotLightProgram->uploadMatrixUniform(lightProjection * lightView, "lightProjViewMatrix");
 		
+		enableVolumeStencilSettings();
+		glClear(GL_STENCIL_BUFFER_BIT);
+		drawCone();
+
+		enableSpotLightSettings();
 		drawCone();
 	}
 

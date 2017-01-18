@@ -137,6 +137,7 @@ private:
 	void enableAmbientSettings();
 	void enableShadowSettings();
 	void enableDirectionalLightSettings();
+	void enableVolumeStencilSettings();
 	void enablePointLightSettings();
 	void enableSpotLightSettings();
 	void drawSponza();

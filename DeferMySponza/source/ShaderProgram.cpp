@@ -72,11 +72,11 @@ void ShaderProgram::uploadVector3Uniform(const glm::vec3 & vector, const char * 
 	glUniform3fv(location, 1, glm::value_ptr(vector));
 }
 
-void ShaderProgram::activateTextureSamplerUniform(const GLuint textureUnit, GLuint texture, const char * uniformName)
+void ShaderProgram::activateTextureSamplerUniform(GLuint textureUnit, GLuint texture, const char * uniformName, const GLenum target)
 {
 	glUseProgram(program);
 	glActiveTexture(GL_TEXTURE0 + textureUnit);
-	glBindTexture(GL_TEXTURE_RECTANGLE, texture);
+	glBindTexture(target, texture);
 	GLuint location = glGetUniformLocation(program, uniformName);
 	glUniform1i(location, textureUnit);
 }
