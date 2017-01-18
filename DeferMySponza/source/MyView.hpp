@@ -58,7 +58,7 @@ struct SpotLight
 	glm::vec3 position;
 	float range = 0;
 	glm::vec3 direction;
-	float coneAngle = 0;
+	float cutoff = 0;
 	glm::vec3 intensity;
 };
 
@@ -132,12 +132,13 @@ private:
                             int height) override;
 
     void windowViewDidStop(tygra::Window * window) override;
-
+	glm::mat4 directionLookat(const glm::vec3& from, const glm::vec3& to);
 	void enableGeometrySettings();
 	void enableAmbientSettings();
 	void enableShadowSettings();
 	void enableDirectionalLightSettings();
-	void enableLightSettings();
+	void enablePointLightSettings();
+	void enableSpotLightSettings();
 	void drawSponza();
 	void drawQuad();
 	void drawSphere();

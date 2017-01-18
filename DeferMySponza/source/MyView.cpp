@@ -120,8 +120,6 @@ void MyView::loadMesh(scene::Mesh mesh)
 	const std::vector<unsigned int> elements = mesh.getElementArray();
 	newMesh.elementCount = elements.size();
 
-	
-
 	//One interleaved vertex buffer
 	glGenBuffers(1, &newMesh.vertexVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, newMesh.vertexVbo);
@@ -403,13 +401,21 @@ void MyView::windowViewDidStop(tygra::Window * window)
 	glDeleteTextures(1, &colorTexture);
 }
 
+glm::mat4 MyView::directionLookat(const glm::vec3 & from, const glm::vec3 & to)
+{
+	float angle = glm::dot(from, to);
+	glm::vec3 axis = glm::cross(from, to);
+	glm::quat rotation = glm::angleAxis(glm::acos(angle), axis);
+	return glm::mat4_cast(rotation);
+}
+
 void MyView::enableGeometrySettings()
 {
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 	glDepthFunc(GL_LEQUAL);
 
-	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_STENCIL_TEST);
 	glStencilFunc(GL_ALWAYS, 1, ~0);
 	glStencilMask(~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
@@ -418,6 +424,7 @@ void MyView::enableGeometrySettings()
 
 	glDisable(GL_BLEND);
 
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
 	glUseProgram(geometryProgram->getProgram());
@@ -427,7 +434,7 @@ void MyView::enableAmbientSettings()
 {
 	glDisable(GL_DEPTH_TEST);
 
-	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_STENCIL_TEST);
 	glStencilFunc(GL_EQUAL, 1, ~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
@@ -435,6 +442,7 @@ void MyView::enableAmbientSettings()
 
 	glDisable(GL_BLEND);
 
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
 	glUseProgram(ambientProgram->getProgram());
@@ -446,7 +454,7 @@ void MyView::enableShadowSettings()
 	glDepthMask(GL_TRUE);
 	glDepthFunc(GL_LEQUAL);
 
-	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_STENCIL_TEST);
 	glStencilFunc(GL_ALWAYS, 1, ~0);
 	glStencilMask(~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
@@ -455,6 +463,7 @@ void MyView::enableShadowSettings()
 
 	glDisable(GL_BLEND);
 
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
 	glViewport(0, 0, shadowMapResolution, shadowMapResolution);
@@ -466,7 +475,7 @@ void MyView::enableDirectionalLightSettings()
 {
 	glDisable(GL_DEPTH_TEST);
 
-	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_STENCIL_TEST);
 	glStencilFunc(GL_EQUAL, 1, ~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
@@ -476,18 +485,19 @@ void MyView::enableDirectionalLightSettings()
 	glBlendEquation(GL_FUNC_ADD);
 	glBlendFunc(GL_ONE, GL_ONE);
 
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
 	glUseProgram(directionalLightProgram->getProgram());
 }
 
-void MyView::enableLightSettings()
+void MyView::enablePointLightSettings()
 {
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_FALSE);
 	glDepthFunc(GL_GREATER);
 	
-	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_STENCIL_TEST);
 	glStencilFunc(GL_EQUAL, 1, ~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 
@@ -497,9 +507,32 @@ void MyView::enableLightSettings()
 	glBlendEquation(GL_FUNC_ADD);
 	glBlendFunc(GL_ONE, GL_ONE);
 
+	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 
 	glUseProgram(pointLightProgram->getProgram());
+}
+
+void MyView::enableSpotLightSettings()
+{
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_FALSE);
+	glDepthFunc(GL_GREATER);
+
+	glDisable(GL_STENCIL_TEST);
+	glStencilFunc(GL_EQUAL, 1, ~0);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+	glEnable(GL_BLEND);
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_ONE, GL_ONE);
+
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+
+	glUseProgram(spotLightProgram->getProgram());
 }
 
 void MyView::drawSponza()
@@ -601,7 +634,7 @@ void MyView::windowViewRender(tygra::Window * window)
 	}
 
 	//Re-enable depth test for point lights
-	enableLightSettings();
+	enablePointLightSettings();
 	
 	pointLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
 	pointLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
@@ -626,6 +659,21 @@ void MyView::windowViewRender(tygra::Window * window)
 
 		drawSphere();
 	}
+	//test sphere
+	/*pLight.position = glm::vec3(0.0f);
+	pLight.range = 5.0f;
+	pLight.intensity = glm::vec3(1.0f);
+	pointLightUbo->bufferData(&pLight);
+
+	glm::mat4 modelMatrix = glm::mat4();
+	modelMatrix = glm::translate(modelMatrix, pLight.position);
+	modelMatrix = glm::scale(modelMatrix, glm::vec3(pLight.range));
+
+	pointLightProgram->uploadMatrixUniform(projViewMatrix * modelMatrix, "combinedMatrix");
+
+	drawSphere();*/
+
+	enableSpotLightSettings();
 
 	spotLightProgram->activateTextureSamplerUniform(0, positionsTexture, "positionSampler");
 	spotLightProgram->activateTextureSamplerUniform(1, normalsTexture, "normalSampler");
@@ -634,23 +682,27 @@ void MyView::windowViewRender(tygra::Window * window)
 
 	const std::vector<scene::SpotLight>& spotLights = scene_->getAllSpotLights();
 	SpotLight sLight;
-	for (const scene::SpotLight& light : spotLights)
+	const glm::vec3& spotLightForward = glm::vec3(0.0f, 0.0f, -1.0f);
+	//for (const scene::SpotLight& light : spotLights)
+	for(int i = 0; i < 1; i++)
 	{
-		sLight.position = (const glm::vec3&)light.getPosition();
-		sLight.range = light.getRange();
+		scene::SpotLight light = spotLights[i];
+		float spotAngle = glm::radians(45.0f);
+
+		sLight.position = glm::vec3(0.0f, 10.0f, 0.0f);//(const glm::vec3&)light.getPosition();
+		sLight.range = 15.0f;//light.getRange();
 		sLight.intensity = (const glm::vec3&)light.getIntensity();
-		sLight.coneAngle = glm::radians(light.getConeAngleDegrees());
-		sLight.direction = (const glm::vec3&)light.getDirection();
+		sLight.cutoff = glm::cos(spotAngle);
+		sLight.direction = glm::vec3(0.0f, -1.0f, 0.0f);//(const glm::vec3&)light.getDirection();
 		spotLightUbo->bufferData(&sLight);
 
+		float radius = sLight.range * glm::tan(spotAngle * 0.5f);
 		glm::mat4 modelMatrix = glm::mat4();
-		float radius = sLight.range * glm::tan(glm::radians(light.getConeAngleDegrees() * 0.5f));
 		modelMatrix = glm::translate(modelMatrix, sLight.position + sLight.direction * sLight.range);
-		modelMatrix = glm::transpose(glm::lookAt(glm::vec3(0.0f), sLight.direction, glm::vec3(0.0f, 1.0f, 0.0f)));
+		modelMatrix *= directionLookat(spotLightForward, sLight.direction);
 		modelMatrix = glm::scale(modelMatrix, glm::vec3(radius, radius, sLight.range));
-		
 		spotLightProgram->uploadMatrixUniform(projViewMatrix * modelMatrix, "combinedMatrix");
-
+		
 		drawCone();
 	}
 

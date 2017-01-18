@@ -11,7 +11,7 @@ layout(std140) uniform SpotLight
 	vec3 position;
 	float range;
 	vec3 direction;
-	float coneAngle;
+	float cutoff;
 	vec3 intensity;
 } light;
 
@@ -34,15 +34,20 @@ vec3 phong(vec3 normal, vec3 viewDirection, vec3 lightDirection)
 		specularIntensity = pow(specularAngle, material.shininess);
 	}
 
-	return material.color * diffuseIntensity + vec3(1.0f, 1.0f, 1.0f) * specularIntensity;
+	return material.color * diffuseIntensity;// +vec3(1.0f, 1.0f, 1.0f) * specularIntensity;
 }
 
-vec3 pointLight(vec3 normal, vec3 viewDirection, vec3 lightDirection, float distanceToLight)
+vec3 spotLight(vec3 normal, vec3 viewDirection, vec3 lightDirection, float distanceToLight)
 {
-	float d = clamp(distanceToLight, 0, light.range);
-	float attenuation = (light.range - d) / light.range;
-	vec3 l = light.intensity * phong(normal, viewDirection, lightDirection);
-	return  l * attenuation;
+	float spot = dot(lightDirection, -light.direction);
+	if (spot > light.cutoff)
+	{
+		float attenuation = smoothstep(light.range, 0, distanceToLight);
+		vec3 l = light.intensity * phong(normal, viewDirection, lightDirection);
+		return  l * attenuation;
+	}
+
+	return vec3(0.0f, 0.0f, 0.0f);
 }
 
 void main(void)
@@ -60,6 +65,5 @@ void main(void)
 	vec3 lightDirection = normalize(positionToLight);
 	float distanceToLight = length(positionToLight);
 
-	//fragColor = pointLight(normal, viewDirection, lightDirection, distanceToLight);
-	fragColor = vec3(1.0f, 0.0f, 0.0f);
+	fragColor = spotLight(normal, viewDirection, lightDirection, distanceToLight);
 }
