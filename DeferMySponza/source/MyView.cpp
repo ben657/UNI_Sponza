@@ -673,7 +673,7 @@ void MyView::windowViewRender(tygra::Window * window)
 		drawSphere();
 
 		enablePointLightSettings();
-		drawSphere();
+		//drawSphere();
 	}
 	//test sphere
 	/*pLight.position = glm::vec3(0.0f);

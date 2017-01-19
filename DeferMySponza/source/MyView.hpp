@@ -74,7 +74,7 @@ public:
 
 private:
 
-	const GLuint shadowMapResolution = 1024;
+	const GLuint shadowMapResolution = 4096;
 
 	GLenum defaultDrawBuffers[2] = { GL_FRONT_LEFT, GL_BACK_LEFT };
 	GLuint gBuffer = 0;
