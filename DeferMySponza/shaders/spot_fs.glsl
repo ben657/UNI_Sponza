@@ -1,9 +1,13 @@
 #version 330
 
+#define PI 3.1415926535897932384626433832795f
+
 struct Material 
 {
-	vec3 color;
-	float shininess;
+	vec3 albedo;
+	float metallic;
+	vec3 specular;
+	float roughness;
 } material;
 
 layout(std140) uniform SpotLight
@@ -53,55 +57,52 @@ float shadowMod(vec3 lightSpaceCoord, vec3 normal)
 	return result;
 }
 
-vec3 phong(vec3 normal, vec3 viewDirection, vec3 lightDirection)
+float maxdot0(vec3 v, vec3 v2)
 {
-	float diffuseIntensity = max(dot(lightDirection, normal), 0.0f);
-	float specularIntensity = 0.0f;
-	if (diffuseIntensity > 0.0f && material.shininess > 0.0f)
-	{
-		vec3 halfDirection = normalize(lightDirection + viewDirection);
-		float specularAngle = max(dot(halfDirection, normal), 0.0f);
-		specularIntensity = pow(specularAngle, material.shininess);
-	}
-
-	return material.color * diffuseIntensity + vec3(1.0f, 1.0f, 1.0f) * specularIntensity;
-}
-
-vec3 spotLight(vec3 normal, vec3 viewDirection, vec3 lightDirection, float distanceToLight)
-{
-	float spot = dot(lightDirection, -light.direction);
-	if (spot > light.cutoff)
-	{
-		float d = clamp(distanceToLight, 0, light.range);
-		float attenuation = (light.range - d) / light.range;
-		attenuation *= pow(spot, spotExponent);
-
-		vec3 l = light.intensity * phong(normal, viewDirection, lightDirection);
-		return  l * attenuation;
-	}
-
-	return vec3(0.0f, 0.0f, 0.0f);
+	return max(dot(v, v2), 0.0f);
 }
 
 vec3 lambertianDiffuse(vec3 normal, vec3 lightDirection)
 {
-	float intensity = max(dot(normal, lightDirection), 0.0f);
-	return material.color * intensity;
+	float intensity = maxdot0(normal, lightDirection);
+	return material.albedo * intensity;
 }
 
-vec3 fresnelSchlick(float cosTheta, vec3 reflectance)
+float beckmannDistribution(vec3 normal, vec3 halfVector)
 {
-	return reflectance + (1.0f - reflectance) * pow(1.0f - cosTheta, 5.0f);
+	float ndoth = maxdot0(normal, halfVector);
+	float r2 = material.roughness * material.roughness;
+
+	float top = exp((pow(ndoth, 2) - 1) / (r2 * pow(ndoth, 2)));
+	float bottom = PI * r2 * pow(ndoth, 4);
+	return top / bottom;
 }
 
-float distribution()
+vec3 schlickFresnel(vec3 specularColor, vec3 lightDirection, vec3 halfVector)
 {
-	return 0;
+	float p = pow(1 - maxdot0(lightDirection, halfVector), 5);
+	return specularColor + (1 - specularColor) * p;
 }
 
-vec3 cookTorranceSpecular()
+float implicitGeometry(vec3 normal, vec3 halfVector, vec3 viewDirection, vec3 lightDirection)
 {
-	return vec3(0);
+	return maxdot0(normal, lightDirection) * maxdot0(normal, viewDirection);
+}
+
+float schlickBeckmannGeometry(vec3 normal, vec3 v)
+{
+	float k = material.roughness * sqrt(2 / PI);
+	float ndotv = maxdot0(normal, v);
+	return ndotv / (ndotv * (1 - k) + k);
+}
+
+vec3 cookTorranceSpecular(vec3 normal, vec3 halfVector, vec3 viewDirection, vec3 lightDirection)
+{
+	float distribution = beckmannDistribution(normal, halfVector);
+	vec3 fresnel = schlickFresnel(vec3(1.0f), lightDirection, halfVector);
+	float geometry = schlickBeckmannGeometry(normal, lightDirection) * schlickBeckmannGeometry(normal, viewDirection);
+
+	return (distribution * fresnel * geometry) / (4 * dot(normal, lightDirection) * maxdot0(normal, viewDirection));
 }
 
 void main(void)
@@ -110,30 +111,25 @@ void main(void)
 	vec3 normal = normalize(texelFetch(normalSampler, coord).xyz);
 	vec3 position = texelFetch(positionSampler, coord).xyz;
 
-	/*material.albedo = texelFetch(materialAlbedoSampler, coord).rgb;
-	vec4 props = texelFetch(materialPropertiesSampler, coord);
-	material.metallic = props.r;
-	material.smoothness = props.g;*/
-
-	vec4 materialData = texelFetch(materialSampler, coord);
-	material.color = materialData.rgb;
-	material.shininess = materialData.w;
+	material.albedo = texelFetch(materialSampler, coord).rgb;
+	//vec4 props = texelFetch(materialPropertiesSampler, coord);
+	material.metallic = 1.0f;
+	material.roughness = .5f;
 
 	vec3 viewDirection = normalize(cameraPosition - position);
 	vec3 positionToLight = light.position - position; //Wi
 	vec3 lightDirection = normalize(positionToLight);
 	float distanceToLight = length(positionToLight);
+	vec3 halfDirection = normalize(lightDirection + viewDirection);
 
 	vec4 lightSpaceCoord = lightProjViewMatrix * vec4(position, 1.0f);
 	float shadowModifier = shadowMod(lightSpaceCoord.xyz / lightSpaceCoord.w, normal);
 
-	//vec3 reflectance = vec3(0.04f);
-	//reflectance = mix(reflectance, material.albedo, material.metallic);
-	////Amount of reflected light
-	//vec3 fresnel = fresnelSchlick(max(dot(normal, viewDirection), 0.0f), reflectance);
+	float d = clamp(distanceToLight, 0, light.range);
+	float attenuation = (light.range - d) / light.range;
 
-	//vec3 ks = fresnel;
-	//vec3 kd = vec3(1.0f) - ks;
+	vec3 diffuse = lambertianDiffuse(normal, lightDirection);
+	vec3 specular = cookTorranceSpecular(normal, halfDirection, viewDirection, lightDirection);
 
-	fragColor = spotLight(normal, viewDirection, lightDirection, distanceToLight) * shadowModifier;
+	fragColor = (diffuse + specular) * attenuation * shadowModifier;
 }
