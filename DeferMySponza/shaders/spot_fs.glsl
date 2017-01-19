@@ -5,9 +5,8 @@
 struct Material 
 {
 	vec3 albedo;
-	float metallic;
-	vec3 specular;
 	float roughness;
+	vec3 specular;
 } material;
 
 layout(std140) uniform SpotLight
@@ -17,6 +16,7 @@ layout(std140) uniform SpotLight
 	vec3 direction;
 	float cutoff;
 	vec3 intensity;
+	int castShadow;
 } light;
 
 uniform sampler2DRect positionSampler;
@@ -30,7 +30,7 @@ uniform mat4 lightProjViewMatrix;
 
 out vec3 fragColor;
 
-const float spotExponent = 0.0f;
+const float spotExponent = 10.0f;
 const float shadowBias = 0.00005f;
 const int poissonSamples = 4;
 const vec2 poissonDisk[4] = vec2[](
@@ -65,7 +65,7 @@ float maxdot0(vec3 v, vec3 v2)
 vec3 lambertianDiffuse(vec3 normal, vec3 lightDirection)
 {
 	float intensity = maxdot0(normal, lightDirection);
-	return material.albedo * intensity;
+	return material.albedo * light.intensity * intensity;
 }
 
 float beckmannDistribution(vec3 normal, vec3 halfVector)
@@ -78,10 +78,10 @@ float beckmannDistribution(vec3 normal, vec3 halfVector)
 	return top / bottom;
 }
 
-vec3 schlickFresnel(vec3 specularColor, vec3 lightDirection, vec3 halfVector)
+vec3 schlickFresnel(vec3 lightDirection, vec3 halfVector)
 {
 	float p = pow(1 - maxdot0(lightDirection, halfVector), 5);
-	return specularColor + (1 - specularColor) * p;
+	return material.specular + (1 - material.specular) * p;
 }
 
 float implicitGeometry(vec3 normal, vec3 halfVector, vec3 viewDirection, vec3 lightDirection)
@@ -92,17 +92,24 @@ float implicitGeometry(vec3 normal, vec3 halfVector, vec3 viewDirection, vec3 li
 float schlickBeckmannGeometry(vec3 normal, vec3 v)
 {
 	float k = material.roughness * sqrt(2 / PI);
-	float ndotv = maxdot0(normal, v);
+	float ndotv = dot(normal, v);
 	return ndotv / (ndotv * (1 - k) + k);
+}
+
+float neumannGeometry(vec3 normal, vec3 lightDirection, vec3 viewDirection)
+{
+	float ndotl = maxdot0(normal, lightDirection);
+	float ndotv = maxdot0(normal, viewDirection);
+	return (ndotl * ndotv) / max(ndotl, ndotv);
 }
 
 vec3 cookTorranceSpecular(vec3 normal, vec3 halfVector, vec3 viewDirection, vec3 lightDirection)
 {
 	float distribution = beckmannDistribution(normal, halfVector);
-	vec3 fresnel = schlickFresnel(vec3(1.0f), lightDirection, halfVector);
-	float geometry = schlickBeckmannGeometry(normal, lightDirection) * schlickBeckmannGeometry(normal, viewDirection);
+	vec3 fresnel = schlickFresnel(lightDirection, halfVector);
+	float geometry = neumannGeometry(normal, lightDirection, viewDirection);
 
-	return (distribution * fresnel * geometry) / (4 * dot(normal, lightDirection) * maxdot0(normal, viewDirection));
+	return (distribution * fresnel * geometry) / (4 * maxdot0(normal, lightDirection) * maxdot0(normal, viewDirection));
 }
 
 void main(void)
@@ -111,25 +118,32 @@ void main(void)
 	vec3 normal = normalize(texelFetch(normalSampler, coord).xyz);
 	vec3 position = texelFetch(positionSampler, coord).xyz;
 
-	material.albedo = texelFetch(materialSampler, coord).rgb;
-	//vec4 props = texelFetch(materialPropertiesSampler, coord);
-	material.metallic = 1.0f;
-	material.roughness = .5f;
+	vec4 materialData1 = texelFetch(materialSampler, coord);
+	material.albedo = materialData1.xyz;
+	material.roughness = 0.7f;
+	material.specular = vec3(0.5f);
 
 	vec3 viewDirection = normalize(cameraPosition - position);
-	vec3 positionToLight = light.position - position; //Wi
+	vec3 positionToLight = light.position - position;
 	vec3 lightDirection = normalize(positionToLight);
 	float distanceToLight = length(positionToLight);
 	vec3 halfDirection = normalize(lightDirection + viewDirection);
 
-	vec4 lightSpaceCoord = lightProjViewMatrix * vec4(position, 1.0f);
-	float shadowModifier = shadowMod(lightSpaceCoord.xyz / lightSpaceCoord.w, normal);
+	float spot = dot(lightDirection, -light.direction);
+	if (spot < light.cutoff)
+		return;
 
 	float d = clamp(distanceToLight, 0, light.range);
 	float attenuation = (light.range - d) / light.range;
+	attenuation *= pow(spot, spotExponent);
 
 	vec3 diffuse = lambertianDiffuse(normal, lightDirection);
 	vec3 specular = cookTorranceSpecular(normal, halfDirection, viewDirection, lightDirection);
 
-	fragColor = (diffuse + specular) * attenuation * shadowModifier;
+	vec4 lightSpaceCoord = lightProjViewMatrix * vec4(position, 1.0f);
+	float shadowModifier = shadowMod(lightSpaceCoord.xyz / lightSpaceCoord.w, normal);
+
+	fragColor = (diffuse + specular) * attenuation;
+	if (light.castShadow == 1)
+		fragColor *= shadowModifier;
 }

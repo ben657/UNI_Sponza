@@ -421,7 +421,7 @@ void MyView::enableGeometrySettings()
 	glDepthMask(GL_TRUE);
 	glDepthFunc(GL_LEQUAL);
 
-	glDisable(GL_STENCIL_TEST);
+	glEnable(GL_STENCIL_TEST);
 	glStencilFunc(GL_ALWAYS, 1, ~0);
 	glStencilMask(~0);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
@@ -440,7 +440,9 @@ void MyView::enableAmbientSettings()
 {
 	glDisable(GL_DEPTH_TEST);
 
-	glDisable(GL_STENCIL_TEST);
+	glEnable(GL_STENCIL_TEST);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+	glStencilFunc(GL_EQUAL, 1, ~0);
 
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -673,7 +675,7 @@ void MyView::windowViewRender(tygra::Window * window)
 		drawSphere();
 
 		enablePointLightSettings();
-		//drawSphere();
+		drawSphere();
 	}
 	//test sphere
 	/*pLight.position = glm::vec3(0.0f);
@@ -699,7 +701,7 @@ void MyView::windowViewRender(tygra::Window * window)
 	SpotLight sLight;
 	const glm::vec3& spotLightForward = glm::vec3(0.0f, 0.0f, -1.0f);
 	//for (const scene::SpotLight& light : spotLights)
-	for(int i = 0; i < 1; i++)
+	for(int i = 0; i < spotLights.size(); i++)
 	{
 		const scene::SpotLight& light = spotLights[i];
 
@@ -710,6 +712,7 @@ void MyView::windowViewRender(tygra::Window * window)
 		sLight.intensity = (const glm::vec3&)light.getIntensity();
 		sLight.cutoff = glm::cos(spotAngle);
 		sLight.direction = (const glm::vec3&)light.getDirection();
+		sLight.castShadow = light.getCastShadow() ? 1 : 0;
 		spotLightUbo->bufferData(&sLight);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, shadowBuffer);

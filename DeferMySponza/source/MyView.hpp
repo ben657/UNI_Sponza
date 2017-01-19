@@ -60,6 +60,7 @@ struct SpotLight
 	glm::vec3 direction;
 	float cutoff = 0;
 	glm::vec3 intensity;
+	int castShadow = 0;
 };
 
 class MyView : public tygra::WindowViewDelegate
@@ -78,7 +79,7 @@ private:
 
 	GLenum defaultDrawBuffers[2] = { GL_FRONT_LEFT, GL_BACK_LEFT };
 	GLuint gBuffer = 0;
-	GLenum gBufferDrawBuffers[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+	GLenum gBufferDrawBuffers[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
 	GLuint lBuffer = 0;
 	GLenum lBufferDrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
 	GLuint depthStencilBuffer = 0;
